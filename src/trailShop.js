@@ -4,6 +4,7 @@ import { TRAILS } from './config.js'
 import { createTrailFx } from './trailFx.js'
 import { trailPicture } from './trailArt.js'
 import { formatCash } from './lobbyHud.js'
+import { sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 import { COIN } from './weightShop.js'
 import { spendCoins } from './coins.js'
@@ -97,6 +98,8 @@ export function createTrailShop({ hud, scene }) {
 
   function equip(t) {
     save.equipped = t ? t.id : ''
+    if (t) sfx.equip()
+    else sfx.pop(false)
     store()
     refresh()
   }

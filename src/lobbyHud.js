@@ -5,6 +5,7 @@
 // All of it steps aside on a climb (body.run-active), .
 import './lobbyHud.css'
 import { BASES, FARM, LOBBY_HUD, STANDS } from './config.js'
+import { chargeOff, chargeOn, sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 import { COIN } from './coinIcon.js'
 import { onCoins } from './coins.js'
@@ -175,14 +176,19 @@ export function createLobbyHud({ travel, run, indexWindow }) {
     holding = false
     held = 0
     spent = false
+    chargeOff()
     promptEl.classList.remove('holding')
     promptEl.style.setProperty('--hold', 0)
   }
   function press() {
     if (!current || holding || spent) return
-    if (!current.hold) return void (current.act ?? promptAction)?.()
+    if (!current.hold) {
+      sfx.click()
+      return void (current.act ?? promptAction)?.()
+    }
     holding = true
     held = 0
+    chargeOn()
     promptEl.classList.add('holding')
   }
   function release() {
@@ -261,7 +267,11 @@ export function createLobbyHud({ travel, run, indexWindow }) {
     },
     // Takes `amount` of the cash; false if there isn't that much.
     spend(amount) {
-      if (cash < amount) return false
+      if (cash < amount) {
+        sfx.deny()
+        return false
+      }
+      sfx.paid()
       cash -= amount
       cashNum.textContent = `${formatCash(cash)}$`
       storeCash(cash)
@@ -325,6 +335,8 @@ export function createLobbyHud({ travel, run, indexWindow }) {
           holding = false
           held = 0
           spent = true
+          chargeOff()
+          sfx.press()
           promptEl.classList.remove('holding')
           promptEl.style.setProperty('--hold', 0)
           ;(current.act ?? promptAction)?.()

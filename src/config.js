@@ -32,7 +32,7 @@ export const REMOTE = {
 
 // --- Bloxity ads and leaderboards (bloxity.js) ---------------------------------------------
 export const ADS = {
-  screens: true, // tell Boxity which screen is up so it can show banner ads on the edges
+  screens: false, // true tells Boxity which screen is up so it can show banner ads on the edges (off: no banners over the game)
   rewarded: { placement: 'free-cash', seconds: 600, cooldown: 30 }, // Playtime window: a watched ad pays this many seconds of the current rate
 }
 // Declared once after init (the first declaration creates a board; Boxity's dashboard owns it
@@ -571,6 +571,7 @@ export const SETTINGS = {
   camera_sensitivity: { def: '1', type: 'number', min: 0.1, max: 5 },
   show_fps: { def: 'false', type: 'bool' },
   fullscreen: { def: 'false', type: 'bool' },
+  sound_volume: { def: '0.8', type: 'number', min: 0, max: 1 }, // audio/core.js master level
 }
 
 // The base rig, measured from player.glb: origin at the feet, 6.4 units tall at bind pose.
@@ -808,7 +809,7 @@ export const SELL = {
 // '#rrggbb' or 'rainbow'.
 const TRAIL_RARITY = { Uncommon: '#a6ff5c', Rare: '#52c8ff', Epic: '#e65cff', Legendary: '#ffc21f', Mythic: '#ff5560', Ancient: '#7cf0d8', Secret: '#e8e8e8', Exotic: '#5cffb0', Ultimate: '#ff8a3c', Divine: '#ffe05a', SPECIAL: '#c040e0' }
 export const TRAILS = {
-  saveKey: 'climb-slide-trails', // localStorage, until the backend has fields for it
+  saveKey: 'climb-slide-trails', // saves.js section (browser + backend)
   length: 22, // points of the ribbon
   every: 0.035, // s between the points
   height: 0.9, // m above the feet
@@ -831,4 +832,47 @@ export const TRAILS = {
     { id: 'white', name: 'White', rarity: 'Divine', multi: 2.5, cash: 800e21, coin: 979, color: '#f4f6fa' },
     { id: 'rainbow', name: 'Rainbow', rarity: 'SPECIAL', multi: 3, cash: 1e24, coin: 1539, color: 'rainbow' },
   ].map((t) => ({ ...t, rarityColor: TRAIL_RARITY[t.rarity] })),
+}
+
+// --- Sound (audio/) ------------------------------------------------------------------
+export const AUDIO = {
+  volume: 0.8,
+  storageKey: 'climb-slide.sound', // localStorage: the mute, this device's and not the player's
+  buses: { ui: 0.7, sfx: 0.9, world: 0.6 }, // per-bus levels before the master
+  duck: 0.5, // world (rush + wind) level while a menu window is open
+  // Hz, a lowpass over everything: nothing shrill can reach the player, whatever a recipe stacks up.
+  ceiling: 6500,
+  warmth: 2.5, // dB of low shelf at 220 Hz
+  maxVoices: 48, // one-shot sounds at once before low-priority ones are skipped
+  maxVoicesTouch: 24,
+  // Output buffer (s, the AudioContext latencyHint): 'interactive' (~10 ms) crackles and drops out
+  // whenever a window open or a shader compile hogs the CPU; this much headroom rides those out.
+  // lead = s every one-shot is scheduled ahead, so a short main-thread stall doesn't clip its start.
+  latency: 0.04,
+  latencyTouch: 0.07,
+  lead: 0.02,
+  // Generated impulse response: pre-delay s, early reflections [ms, gain], tail decay s (to -60 dB),
+  // tail level, how dark it starts and how fast it darkens, and the default send level.
+  reverb: { seconds: 1.4, preDelay: 0.012, early: [[19, 0.4], [31, 0.28], [47, 0.2], [73, 0.14]], decay: 1.1, tail: 0.16, dark: 0.55, darken: 1.4, send: 0.8 },
+  tapGap: 60, // ms between tap notes, whatever the fingers do
+  autoTap: 0.5, // level of the notes Auto Climb plays: it goes on for hours
+  nearBest: 40, // HUD m under the record the heartbeat starts
+  nearMiss: 0.85, // a run this share of the record ends on an unresolved tune
+  heart: [1, 0.5], // s between beats, at the start of that stretch and right at the record
+  // Under a run's footsteps, one per ZONES.
+  surfaces: ['stone', 'wet', 'snow', 'cloud', 'sand', 'rock'],
+  // What the taps play, one per ZONES, so every new zone is a new tune to reach. `key` is semitones
+  // from C, each chord a triad in semitones from middle C (kept low: the arpeggio adds an octave).
+  songs: [
+    { key: 0, chords: [[0, 4, 7], [-7, -3, 0], [-3, 0, 4], [-5, -1, 2]] }, // sunny: C F Am G
+    { key: 2, chords: [[-3, 0, 4], [-7, -3, 0], [0, 4, 7], [-5, -1, 2]] }, // wistful: Am F C G
+    { key: 4, chords: [[0, 4, 11], [-3, 4, 7], [-7, -3, 4], [-5, 2, 4]] }, // glassy sevenths
+    { key: 5, chords: [[0, 4, 7], [-10, -6, -3], [-3, 0, 4], [-10, -6, -3]] }, // floating: C D Am D
+    { key: 2, chords: [[0, 4, 7], [1, 5, 8], [0, 4, 7], [-2, 1, 5]] }, // the desert's flat second
+    { key: 3, chords: [[-3, 0, 4], [-5, -1, 2], [-7, -3, 0], [-8, -4, -1]] }, // heroic: Am G F E
+  ],
+  // audio/loops.js. rush and rushBody: the slide's water and its low body, filter Hz from a crawl to
+  // top speed. wind: its level at the summit, Hz from the foot to the top, windDrift: how much the
+  // gusts move it. drips: bubbles a second along the channel. charge: the tone while E is held.
+  loops: { rush: 0.34, rushBody: 0.5, rushLow: 420, rushHigh: 1900, wind: 0.2, windLow: 300, windHigh: 720, windDrift: 0.35, drips: [5, 16], charge: 0.09, chargeFrom: 165, chargeTo: 392 },
 }

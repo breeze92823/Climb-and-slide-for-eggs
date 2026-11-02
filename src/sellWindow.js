@@ -3,6 +3,7 @@ import { SELL } from './config.js'
 import { petInfo } from './baseFarm.js'
 import { formatCash } from './lobbyHud.js'
 import { renderArt } from './petArt.js'
+import { sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 import * as saves from './saves.js'
 
@@ -53,6 +54,7 @@ export function createSellWindow({ hud, farm }) {
       if (farm.sell(p)) sum += amount
     }
     if (!sum) return
+    sfx.sell(pets.length)
     hud.addCash(sum)
     hud.toast(`Sold for $${formatCash(sum)}`)
   }
@@ -109,6 +111,7 @@ export function createSellWindow({ hud, farm }) {
   all.addEventListener('click', () => pay(spare()))
   toggle.addEventListener('click', () => {
     auto = !auto
+    sfx.toggle(auto)
     try {
       saves.store(SELL.saveKey, { auto })
     } catch {

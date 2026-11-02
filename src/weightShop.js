@@ -3,6 +3,7 @@ import { WEIGHTS } from './config.js'
 import { formatCash } from './lobbyHud.js'
 import { player } from './player.js'
 import { screenPoint } from './stallPrompts.js'
+import { sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 import { renderWeights, weightGeometry } from './weightArt.js'
 import { spendCoins } from './coins.js'
@@ -99,6 +100,7 @@ export function createWeightShop({ hud, bases, run, camera }) {
 
   function equip(w) {
     save.equipped = w.id
+    sfx.equip()
     store()
     refresh()
   }

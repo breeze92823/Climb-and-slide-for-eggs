@@ -1,5 +1,6 @@
 import { AdditiveBlending, BufferGeometry, CanvasTexture, Color, Float32BufferAttribute, NormalBlending, Points, ShaderMaterial, SRGBColorSpace, Vector3 } from 'three'
 import { LOBBY, RUN, zoneAt } from './config.js'
+import { sfx } from './audio/index.js'
 import { mulberry32, paintSoftDot } from './textures.js'
 
 // The weather of the zone the player is in (ZONES). One cloud of points that wraps around a box
@@ -131,6 +132,7 @@ export function createWeather(scene, lighting) {
         if (nextBolt <= 0) {
           nextBolt = zone.weather.lightning * (0.6 + Math.random() * 0.8)
           lighting.bolt()
+          sfx.thunder()
         }
       }
     },

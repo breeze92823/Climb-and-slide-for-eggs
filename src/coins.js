@@ -1,4 +1,5 @@
 import { COINS } from './config.js'
+import { sfx } from './audio/index.js'
 import * as saves from './saves.js'
 
 // The coin balance, kept in one place for the shop window, the HUD and every coin price.
@@ -28,7 +29,11 @@ export const coins = () => (balance ??= load())
 export const addCoins = (n) => change(coins() + n)
 // Takes `n` coins; false if there aren't that many.
 export function spendCoins(n) {
-  if (coins() < n) return false
+  if (coins() < n) {
+    sfx.deny()
+    return false
+  }
+  sfx.paid()
   change(coins() - n)
   return true
 }

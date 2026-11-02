@@ -1,6 +1,7 @@
 import { Clock, Group, LinearToneMapping, PCFSoftShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three'
 import { BASES, CAMERA, graphicsPreset, RENDER, RUN, SPAWN } from './config.js'
 import * as bloxity from './bloxity.js'
+import { installAudio, setAdBreak, setVolume, sfx, toggleMuted, updateAudio } from './audio/index.js'
 import { install as installInput, onKey, onKeyUp } from './input.js'
 import { installTouch } from './touch.js'
 import { createPlayerBody, interpolate as interpolatePlayer, player, resetPlayer, respawn } from './player.js'
@@ -49,6 +50,7 @@ let weather = null
 function applySetting(key, value) {
   if (key === 'camera_sensitivity') setCameraSensitivity(value)
   else if (key === 'fullscreen') bloxity.requestFullscreen(value)
+  else if (key === 'sound_volume') setVolume(value)
   else if (key === 'graphics_quality' && renderer) {
     const next = graphicsPreset(value)
     renderer.shadowMap.enabled = next.shadows
@@ -63,6 +65,7 @@ function applySetting(key, value) {
 }
 bloxity.onSetting(applySetting)
 bloxity.init()
+installAudio() // starts on the first tap or key (browser autoplay rules)
 
 // --- Renderer ---------------------------------------------------------------
 const preset = graphicsPreset(bloxity.settings.graphics_quality)
@@ -171,15 +174,24 @@ bloxity.onRespawnRequest(respawn)
 // --- Modes + keys --------------------------------------------------------------
 onModeChanged((mode) => {
   playerGroup.visible = mode !== 'player' // first person: you are the camera
+  sfx.click()
 })
+const toggleDay = () => {
+  lighting.toggleDayNight()
+  sfx.dayNight()
+}
 onKey('KeyV', toggleMode)
-onKey('KeyN', () => lighting.toggleDayNight())
+onKey('KeyN', toggleDay)
 onKey('KeyR', respawn)
-installTouch({ mode: toggleMode, day: () => lighting.toggleDayNight(), respawn })
+onKey('KeyM', toggleMuted) // sound on/off (touch: the portal's sound_volume setting)
+installTouch({ mode: toggleMode, day: toggleDay, respawn })
 
-// Boxity's ad breaks pause the game (there is no audio to mute yet).
+// Boxity's ad breaks pause and mute the game.
 let adBreak = false
-bloxity.onAdBreak((on) => (adBreak = on))
+bloxity.onAdBreak((on) => {
+  adBreak = on
+  setAdBreak(on)
+})
 
 // --- Windows ----------------------------------------------------------------
 const indexWindow = createIndexWindow()
@@ -213,9 +225,10 @@ onKeyUp('KeyE', lobbyHud.release)
 const playtime = createPlaytimeWindow({ hud: lobbyHud, farm })
 const daily = createDailyWindow({ hud: lobbyHud, farm })
 const sellWindow = createSellWindow({ hud: lobbyHud, farm })
-lobbyHud.setWindows({ pets: createPetsWindow({ hud: lobbyHud, farm }), rebirth, gift: playtime, daily, sell: sellWindow, eggs: createEggsWindow({ hud: lobbyHud, farm }), trails, coins: createCoinShop({ hud: lobbyHud }) })
+const coins = createCoinShop({ hud: lobbyHud })
+lobbyHud.setWindows({ pets: createPetsWindow({ hud: lobbyHud, farm }), rebirth, gift: playtime, daily, sell: sellWindow, eggs: createEggsWindow({ hud: lobbyHud, farm }), trails, coins })
 const shop = createWeightShop({ hud: lobbyHud, bases: world.bases, run, camera })
-const stalls = createStallPrompts({ hud: lobbyHud, camera, sell: sellWindow, run })
+const stalls = createStallPrompts({ hud: lobbyHud, camera, sell: sellWindow, coins, run })
 const goals = createGoals({ hud: lobbyHud, camera, farm, run, signs: world.signs, bursts: world.bursts })
 const training = createTraining({ group: playerGroup, world, run, shop })
 bloxity.onReservedAreas((areas) => {
@@ -228,6 +241,7 @@ const remotes = createRemotePlayers({ scene, camera, localGroup: playerGroup, lo
 
 // --- Loop -------------------------------------------------------------------
 const clock = new Clock()
+const heard = { x: 0, z: 0, grounded: true, vy: 0, driven: false } // what the sound reads of the player
 let shownLoading = true
 let readySince = 0
 
@@ -250,6 +264,13 @@ renderer.setAnimationLoop(() => {
     carry: run.carry(),
     lift: training.lift(),
   })
+
+  heard.x = player.position.x
+  heard.z = player.position.z
+  heard.grounded = player.grounded
+  heard.vy = player.velocity.y
+  heard.driven = !!player.drive
+  updateAudio(dt, { player: heard, stride: animator?.state === 'run' ? animator.phase : null, speed: Math.hypot(player.velocity.x, player.velocity.z), run: run.sound() })
 
   updateCamera(camera, dt)
   world.update(elapsed, camera, renderer)
@@ -296,5 +317,5 @@ if (import.meta.env.DEV) {
     resetPlayer({ x, y, z }, facing)
     syncYawToPlayer()
   }
-  window.__game = { net, remotes, player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, index: petIndex, indexWindow, run, farm, training, shop, trails, rebirth, playtime, goals, hud: lobbyHud }
+  window.__game = { sfx, net, remotes, player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, index: petIndex, indexWindow, run, farm, training, shop, trails, rebirth, playtime, goals, hud: lobbyHud }
 }

@@ -1,5 +1,6 @@
 import { GOALS, STANDS } from './config.js'
 import { addCoins } from './coins.js'
+import { sfx } from './audio/index.js'
 import { formatCash } from './lobbyHud.js'
 import { petInfo } from './baseFarm.js'
 import { player } from './player.js'
@@ -116,6 +117,7 @@ export function createGoals({ hud, camera, farm, run, signs, bursts }) {
         if (!done(save, 'pass')) return { text: 'Obtain T-Rex Egg' }
         return done(save, 'portal') ? { text: 'Green World', tap: () => hud.comingSoon('Green World') } : { text: 'Enter Portal', ready: true }
       },
+      sound: sfx.portal,
       claim() {
         save.done.push('portal')
         farm.refresh()
@@ -127,6 +129,7 @@ export function createGoals({ hud, camera, farm, run, signs, bursts }) {
 
   function claim(goal) {
     if (goal.claim() === false) return
+    ;(goal.sound ?? sfx.gift)()
     store()
     goal.sign()
     burst(goal.at, GREEN)
@@ -161,7 +164,7 @@ export function createGoals({ hud, camera, farm, run, signs, bursts }) {
         const pt = near ? screenPoint(camera, goal.at.x, PROMPT_Y, goal.at.z) : null
         if (!pt) return hud.prompt(null, `goal${i}`)
         const { text, ready, tap } = goal.prompt()
-        hud.prompt({ ...pt, text, hold: !!ready, act: ready ? () => claim(goal) : tap ?? (() => {}) }, `goal${i}`)
+        hud.prompt({ ...pt, text, hold: !!ready, act: ready ? () => claim(goal) : tap ?? sfx.deny }, `goal${i}`)
       })
     },
     // Dev: moves the clock on.

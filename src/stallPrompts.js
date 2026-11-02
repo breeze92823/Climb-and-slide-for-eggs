@@ -12,11 +12,11 @@ export function screenPoint(camera, x, y, z) {
   return at.z < 1 ? { x: (at.x + 1) / 2, y: (1 - at.y) / 2 } : null
 }
 
-// hud: the lobby HUD (prompt, comingSoon). sell: the Sell window. run: the climb run.
-export function createStallPrompts({ hud, camera, sell, run }) {
+// hud: the lobby HUD (prompt, comingSoon). sell: the Sell window. coins: the Coins window. run: the climb run.
+export function createStallPrompts({ hud, camera, sell, coins, run }) {
   const stalls = [
     { source: 'sell', stand: STANDS.sell, text: 'Sell', open: () => sell.open() },
-    { source: 'shop', stand: STANDS.shop, text: 'Shop', open: () => hud.comingSoon('Shop') },
+    { source: 'shop', stand: STANDS.shop, text: 'Buy Coins', open: () => coins.open() },
   ]
   return {
     // Once a frame.

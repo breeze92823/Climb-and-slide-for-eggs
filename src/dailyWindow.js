@@ -5,6 +5,7 @@ import { CASH } from './indexWindow.js'
 import * as net from './net.js'
 import { renderArt } from './petArt.js'
 import * as saves from './saves.js'
+import { sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 
 // The Daily Rewards window, off the calendar button: one reward a day, day 1 to 7, then it starts
@@ -66,6 +67,7 @@ export function createDailyWindow({ hud, farm }) {
     claiming = false
     if (!ok) return hud.toast('Could not claim. Try again!')
     const { day } = cells[i]
+    sfx.gift()
     if (day.pet) farm.give(day.pet)
     else if (day.cash) hud.addCash(day.cash * hud.rate())
     else {

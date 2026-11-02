@@ -4,6 +4,7 @@
 // is open at a time; Esc closes it (main.js routes Esc through closeTopWindow before the
 // portal menu).
 import './uiWindow.css'
+import { setDucked, sfx } from './audio/index.js'
 
 let current = null // the open window, if any
 
@@ -85,7 +86,9 @@ export function createWindow({ title, className = '', onOpen, onClose } = {}) {
     isOpen: () => shown,
     open() {
       if (shown) return
+      sfx.windowOpen() // first: it wins over the close sound of the window this one replaces
       if (current) current.close()
+      setDucked(true)
       current = win
       shown = true
       onOpen?.()
@@ -101,6 +104,8 @@ export function createWindow({ title, className = '', onOpen, onClose } = {}) {
       shown = false
       overlay.hidden = true
       current = null
+      sfx.windowClose()
+      setDucked(false)
       onClose?.()
     },
     toggle: () => (win.isOpen() ? win.close() : win.open()),

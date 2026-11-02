@@ -1,10 +1,10 @@
 // Where every window keeps its progress. Each system calls load(key) once at start and
 // store(key, section) whenever it changes, with the key from its own config (saveKey). A section
-// is kept in memory and in localStorage (namespaced by the player, so a shared browser never
-// mixes accounts); net.js sends the changed ones to the backend and, for a signed-in player,
-// hydrate() puts the server's copy in before the systems start. The backend's flat document
+// is kept in memory only, never in the browser: the server is the one place progress lives.
+// net.js sends the changed ones to the backend and hydrate() puts the server's copy in before
+// the systems start (offline, a session simply starts fresh and is not kept). The backend's flat document
 // (Climb-and-slide-for-eggs-backend/src/db.ts PlayerDoc) is what `fields` maps each section onto.
-import { COINS, DAILY, FARM, GOALS, INDEX, LOBBY_HUD, REBIRTH, RUN, SELL, WEIGHTS } from './config.js'
+import { COINS, DAILY, FARM, GOALS, INDEX, LOBBY_HUD, REBIRTH, RUN, SELL, TRAILS, WEIGHTS } from './config.js'
 
 const defined = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
 
@@ -25,6 +25,10 @@ const SECTIONS = {
   [WEIGHTS.saveKey]: {
     to: (s) => ({ weightsOwned: s.owned, weightEquipped: s.equipped }),
     from: (d) => defined({ owned: d.weightsOwned, equipped: d.weightEquipped }),
+  },
+  [TRAILS.saveKey]: {
+    to: (s) => ({ trailsOwned: s.owned, trailEquipped: s.equipped }),
+    from: (d) => defined({ owned: d.trailsOwned, equipped: d.trailEquipped }),
   },
   [COINS.saveKey]: {
     to: (s) => ({ coins: s.coins }),
@@ -57,8 +61,6 @@ let namespace = 'guest'
 const memory = new Map() // key -> section
 const listeners = new Set()
 
-const storageKey = (key) => `${key}:${namespace}`
-
 // Who the saves belong to (a Bloxity user id, or 'guest' / 'dev'). Call before anything loads.
 export function setNamespace(id) {
   namespace = String(id || 'guest')
@@ -66,26 +68,11 @@ export function setNamespace(id) {
 }
 
 export function load(key) {
-  if (memory.has(key)) return structuredClone(memory.get(key))
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey(key)))
-    if (saved && typeof saved === 'object') {
-      memory.set(key, saved)
-      return structuredClone(saved)
-    }
-  } catch {
-    // No storage, or a bad save: the caller starts from its default.
-  }
-  return null
+  return memory.has(key) ? structuredClone(memory.get(key)) : null
 }
 
 export function store(key, section, { quiet = false } = {}) {
   memory.set(key, structuredClone(section))
-  try {
-    localStorage.setItem(storageKey(key), JSON.stringify(section))
-  } catch {
-    // Storage blocked: the progress lasts this session (and the backend, if signed in).
-  }
   if (!quiet && SECTIONS[key]) for (const fn of listeners) fn(key)
 }
 

@@ -1,5 +1,6 @@
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, Quaternion, Sprite, SpriteMaterial, SRGBColorSpace, Vector3 } from 'three'
-import { CLIMB, climbY, INDEX, LOBBY, RUN, zoneAt } from './config.js'
+import { AUDIO, CLIMB, climbY, INDEX, LOBBY, RUN, ZONES, zoneAt } from './config.js'
+import { sfx } from './audio/index.js'
 import { aimCamera } from './camera.js'
 import { lockStone } from './climb.js'
 import { createClimbHud } from './climbHud.js'
@@ -133,6 +134,7 @@ export function createClimbRun({ scene, group, camera, world }) {
   function selectSlot(i) {
     if (i > stacks().length || state !== 'idle' || training) return
     slot = i
+    sfx.holster()
     showHeld()
   }
   for (let i = 0; i < RUN.hotbar; i++) onKey(`Digit${i + 1}`, () => selectSlot(i))
@@ -140,6 +142,7 @@ export function createClimbRun({ scene, group, camera, world }) {
   function toggleAuto() {
     save.auto = !save.auto
     hud.setAuto(save.auto)
+    sfx.toggle(save.auto)
     store(save)
   }
 
@@ -167,6 +170,7 @@ export function createClimbRun({ scene, group, camera, world }) {
   const coinScale = new Vector3(1, 1, 1)
   let nextCoin = 1 // index of the next coin, the first at coinS
   let coinCash = 0 // paid this run
+  let coinCount = 0 // and how many
   let coinPay = () => 0 // pays one, returns how much; set from main.js
   let spin = 0
 
@@ -210,7 +214,11 @@ export function createClimbRun({ scene, group, camera, world }) {
   let flyY = 0
   let eggGlow = 0
   let eggPop = 0
-  let reveal = null // { t, luck, orbOn }
+  let reveal = null // { t, luck, orbOn, hush }
+  let fullBoost = false // the top of the boost has had its sound
+  let lowHinted = false // so has the bar running low
+  let slideMark = 0 // the last height mark passed on the way down
+  const sound = { climbing: false, zone: 0, slide: 0, air: 0, metres: 0, tension: 0 } // run.sound()
   let training = false // lifting on the pad (training.js): the hands are taken
   showHeld()
 
@@ -237,10 +245,12 @@ export function createClimbRun({ scene, group, camera, world }) {
     bestAtStart = save.best
     boardAt = save.best
     nextCoin = Math.floor(s / coinS) + 1
-    coinCash = 0
+    coinCash = coinCount = 0
     coins.visible = true
     nextPad = Math.floor(m / RUN.padStep) + 1
     zone = zoneAt(m)
+    sfx.setSong(ZONES.indexOf(zone))
+    fullBoost = lowHinted = false
     recordShown = false
     eggGlow = 1
     eggPop = 1
@@ -260,13 +270,17 @@ export function createClimbRun({ scene, group, camera, world }) {
     hud.setMeter(m)
     hud.tag(RUN.tiers[Math.max(passed, 0)])
     checkpointBanner()
+    sfx.runStart()
     bursts.emit({ count: 24, pos: [player.position.x, player.position.y + OVERHEAD + 0.5, player.position.z], spread: [0.5, 0.5, 0.5], radial: 3, life: 0.7, size: 0.32, color: '#ffffff' })
   }
 
-  function tap() {
+  function tap(auto = false) {
     if (state !== 'climb') return
     boost = Math.min(RUN.maxBoost, boost + RUN.tapBoost)
     hud.tapped()
+    sfx.tap(boost / RUN.maxBoost, auto)
+    if (boost >= RUN.maxBoost && !fullBoost) sfx.fullPower()
+    fullBoost = boost >= RUN.maxBoost * 0.6 && (fullBoost || boost >= RUN.maxBoost)
     const p = player.position
     bursts.emit({ layer: 'chunk', count: 5, pos: [p.x, p.y + 0.15, p.z], spread: [0.4, 0.05, 0.2], vel: [0, 2.4, 1.2], jitter: [1.2, 1, 0.8], gravity: -14, life: 0.5, size: 0.14, color: '#d9e4e6', color2: '#ffffff' })
   }
@@ -278,6 +292,7 @@ export function createClimbRun({ scene, group, camera, world }) {
     hopT = 0
     hopFrom = player.position.x
     player.velocity.x = player.velocity.z = 0
+    sfx.hop()
     hud.setBanner(null)
     hud.slideMode()
     aimCamera(Math.PI, 0.42, 1.4)
@@ -292,11 +307,14 @@ export function createClimbRun({ scene, group, camera, world }) {
     player.tilt = 0
     player.velocity.x = player.velocity.y = player.velocity.z = 0
     const newBest = peak > save.best
+    const near = !newBest && save.best > 0 && peak >= save.best * AUDIO.nearMiss
     if (newBest) save.best = peak
     const gain = gained(RUN.strengthPerRun)
     save.strength += gain
     hud.setStrength(save.strength)
     hud.result({ metres: Math.floor(peak), newBest, gain, cash: coinCash })
+    sfx.touchdown(Math.min(1, flyZ / RUN.launchSpeed))
+    sfx.result({ newBest, near, coins: coinCount })
     showBest(save.best)
     hud.setBestMark(save.best)
     store(save)
@@ -309,14 +327,17 @@ export function createClimbRun({ scene, group, camera, world }) {
 
   function finishReveal() {
     if (!reveal) return
-    const luck = reveal.luck
+    const { luck, hush } = reveal
+    hush?.()
     reveal = null
     orb.visible = false
     mystery.visible = false
     hud.chip(null)
     let tierIdx = Math.max(tierAt(peak), 0)
-    if (tierIdx + 1 < RUN.tiers.length && Math.random() < RUN.upgradeChance * luck) tierIdx++
+    const lucky = tierIdx + 1 < RUN.tiers.length && Math.random() < RUN.upgradeChance * luck
+    if (lucky) tierIdx++
     const tier = RUN.tiers[tierIdx]
+    sfx.reveal(tierIdx, lucky)
     save.eggs.push(tierIdx)
     slot = stacks().findIndex((s) => s.tierIdx === tierIdx) + 1
     store(save)
@@ -338,7 +359,7 @@ export function createClimbRun({ scene, group, camera, world }) {
         autoWait -= dt
         if (autoWait <= 0) {
           autoWait = 1 / RUN.autoRate
-          tap()
+          tap(true)
         }
       }
       boost = Math.max(0, boost - RUN.boostDecay * dt)
@@ -355,10 +376,15 @@ export function createClimbRun({ scene, group, camera, world }) {
       hud.setBar(strength, maxStrength, save.strength)
       hud.setLuck(luckAt(m))
       hud.setMeter(m)
+      if (!lowHinted && strength / maxStrength < RUN.lowStrength) {
+        lowHinted = true
+        sfx.lowStrength()
+      }
       const tier = tierAt(m)
       if (tier > passed) {
         passed = tier
         hud.tag(RUN.tiers[tier])
+        sfx.tier(tier)
         eggGlow = eggPop = 1
         bursts.emit({ count: 36, pos: [p.x, p.y + 2.2, p.z], spread: [1.6, 1.6, 0.6], radial: 2.4, life: 0.9, size: 0.34, color: RUN.tiers[tier].color, color2: '#ffffff' })
       }
@@ -366,17 +392,21 @@ export function createClimbRun({ scene, group, camera, world }) {
       const here = zoneAt(m)
       if (here !== zone) {
         zone = here
+        sfx.setSong(ZONES.indexOf(zone))
+        sfx.zone()
         hud.headline(zone.name.toUpperCase())
       }
       while (nextCoin * coinS <= s) {
         nextCoin++
         coinCash += coinPay()
+        sfx.coin(coinCount++)
         bursts.emit({ count: 8, pos: [p.x, p.y + 1.3, p.z], spread: [0.3, 0.3, 0.3], radial: 3, life: 0.45, size: 0.22, color: '#ffd23a', color2: '#ffffff' })
       }
       if (nextPad * RUN.padStep <= m) {
         nextPad++
         boost = RUN.maxBoost
         hud.tag({ name: 'Speed Boost', color: '#fff27a' })
+        sfx.speedPad()
         bursts.emit({ count: 22, pos: [p.x, p.y + 0.4, p.z], spread: [1.2, 0.2, 0.6], vel: [0, 2, -3], jitter: [1, 1, 1], life: 0.6, size: 0.26, color: '#fff27a', color2: '#ffffff' })
       }
       if (m > bestAtStart && m >= boardAt + RUN.bestStep) {
@@ -387,10 +417,12 @@ export function createClimbRun({ scene, group, camera, world }) {
       if (Math.floor(m / RUN.milestone) > milestone) {
         milestone = Math.floor(m / RUN.milestone)
         hud.milestone(milestone * RUN.milestone)
+        sfx.milestone(milestone)
       }
       if (!recordShown && bestAtStart > 0 && m > bestAtStart) {
         recordShown = true
         hud.headline('NEW RECORD!')
+        sfx.record()
         bursts.emit({ count: 40, pos: [p.x, p.y + 2.4, p.z], spread: [1.2, 1.2, 0.6], radial: 3, life: 1, size: 0.3, color: '#ffd23a', color2: '#ffffff' })
       }
       if (strength <= 0 || s >= L - 1) hop()
@@ -407,7 +439,9 @@ export function createClimbRun({ scene, group, camera, world }) {
         state = 'slide'
         slideSpeed = 2
         spray = 0
+        slideMark = Math.floor(m / RUN.milestone)
         player.grounded = true
+        sfx.splash(0.9)
         bursts.emit({ layer: 'chunk', count: 26, pos: [p.x, p.y + 0.15, p.z], spread: [1, 0.05, 0.5], vel: [0, 3.5, 1], jitter: [2, 1.6, 1.5], gravity: -16, life: 0.6, size: 0.17, color: '#ffffff', color2: '#7feeff' })
       }
     } else if (state === 'slide') {
@@ -419,6 +453,7 @@ export function createClimbRun({ scene, group, camera, world }) {
       player.velocity.z = Math.min(slideSpeed, RUN.slideMax)
       hud.setMeter(m)
       hud.setSlideHeight(m)
+      if (Math.floor(m / RUN.milestone) < slideMark) sfx.slideMark(--slideMark)
       spray -= dt
       if (spray <= 0) {
         spray = 0.04
@@ -430,6 +465,7 @@ export function createClimbRun({ scene, group, camera, world }) {
         flyY = RUN.launchUp
         player.grounded = false
         hud.setSlideHeight(0)
+        sfx.launch()
         bursts.emit({ layer: 'chunk', count: 34, pos: [p.x, p.y + 0.2, p.z], spread: [1.4, 0.1, 0.4], vel: [0, 5, 3], jitter: [2.6, 2, 2], gravity: -16, life: 0.7, size: 0.2, color: '#ffffff', color2: '#7feeff' })
       }
     } else if (state === 'fly') {
@@ -445,6 +481,18 @@ export function createClimbRun({ scene, group, camera, world }) {
   return {
     sliding: () => state === 'hop' || state === 'slide' || state === 'fly',
     carry: () => (state !== 'idle' || (reveal && !reveal.orbOn) ? 'overhead' : held.visible ? 'hold' : null),
+    // What the sound follows, once a frame (the same object each time).
+    sound() {
+      const climbing = state === 'climb'
+      sound.climbing = climbing
+      sound.zone = zone ? ZONES.indexOf(zone) : 0
+      sound.slide = state === 'slide' ? Math.min(1, slideSpeed / (RUN.slideMax * pace)) : 0
+      sound.air = state === 'fly' ? 0.8 : state === 'hop' ? 0.4 : state === 'slide' ? 0.3 + 0.5 * sound.slide : climbing ? (0.3 * boost) / RUN.maxBoost : 0
+      sound.metres = state === 'idle' ? 0 : m
+      const gap = bestAtStart - m // the last stretch to the record
+      sound.tension = climbing && bestAtStart > 0 && gap > 0 && gap < AUDIO.nearBest ? 1 - gap / AUDIO.nearBest : 0
+      return sound
+    },
 
     // Once a frame: the trigger, the eggs' looks and the hatch.
     update(dt) {
@@ -476,6 +524,7 @@ export function createClimbRun({ scene, group, camera, world }) {
       reveal.t += dt
       if (!reveal.orbOn && reveal.t >= RUN.orbDelay) {
         reveal.orbOn = true
+        reveal.hush = sfx.orbCharge(RUN.orbTime)
         orb.visible = true
         hud.exitRun()
         mystery.position.copy(ORB_AT).setY(0.72)

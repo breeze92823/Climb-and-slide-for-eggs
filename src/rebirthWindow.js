@@ -2,6 +2,7 @@ import './rebirthWindow.css'
 import { REBIRTH } from './config.js'
 import { CASH } from './indexWindow.js'
 import { formatCash } from './lobbyHud.js'
+import { sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 import { COIN } from './weightShop.js'
 import * as bloxity from './bloxity.js'
@@ -86,6 +87,7 @@ export function createRebirthWindow({ hud }) {
 
   function rebirth() {
     if (!hud.spend(cost())) return hud.toast('Not enough Cash!')
+    sfx.rebirth()
     count++
     try {
       saves.store(REBIRTH.saveKey, { count })

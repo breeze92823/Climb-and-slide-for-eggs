@@ -1,5 +1,6 @@
 import { Mesh } from 'three'
 import { TRAIN } from './config.js'
+import { sfx } from './audio/index.js'
 import { aimCamera } from './camera.js'
 import { inputState } from './input.js'
 import { player } from './player.js'
@@ -27,14 +28,16 @@ export function createTraining({ group, world, run, shop }) {
   let reps = 0 // goes up all the time, a whole number is a rep
   let boost = 0 // s left of the hand button's x2
   let holding = false // still holding the key that walked them on
+  let set = 0 // reps since they started, for the note each one plays
 
   const liftAt = () => (1 - Math.cos(reps * Math.PI)) / 2 // a full press every two reps
 
   function start() {
     training = true
     armed = false
-    reps = boost = 0
+    reps = boost = set = 0
     holding = true
+    sfx.trainStart()
     player.drive = tick
     player.velocity.x = player.velocity.y = player.velocity.z = 0
     player.grounded = true
@@ -58,6 +61,7 @@ export function createTraining({ group, world, run, shop }) {
   function stop() {
     if (!training) return
     player.drive = null
+    sfx.trainStop()
     end()
   }
 
@@ -65,6 +69,7 @@ export function createTraining({ group, world, run, shop }) {
     if (!training) return
     boost = TRAIN.boostTime
     hud.boosted()
+    sfx.trainBoost()
   }
 
   function tick(dt) {
@@ -85,6 +90,7 @@ export function createTraining({ group, world, run, shop }) {
     if (Math.floor(reps) > before) {
       const { strength } = shop.equipped()
       hud.strengthPop(run.addStrength(strength))
+      sfx.rep(set++, boost > 0)
     }
   }
 

@@ -6,6 +6,7 @@ import { renderArt } from './petArt.js'
 import * as bloxity from './bloxity.js'
 import { formatCash } from './lobbyHud.js'
 import * as net from './net.js'
+import { sfx } from './audio/index.js'
 import { createWindow } from './uiWindow.js'
 import { COIN } from './weightShop.js'
 
@@ -63,6 +64,7 @@ export function createPlaytimeWindow({ hud, farm }) {
     if (!paid) return void (result.status === 'completed' && hud.toast("Couldn't check the ad!"))
     adAt = Date.now()
     const gain = hud.rate() * seconds
+    sfx.gift()
     hud.addCash(gain)
     hud.toast(`+${formatCash(gain)}$`)
   })
@@ -72,6 +74,7 @@ export function createPlaytimeWindow({ hud, farm }) {
   function claim(cell) {
     if (!ready(cell)) return
     cell.claimed = true
+    sfx.gift()
     if (cell.reward.pet) farm.give(cell.reward.pet)
     else hud.addCash(cell.reward.cash * hud.rate())
     refresh()

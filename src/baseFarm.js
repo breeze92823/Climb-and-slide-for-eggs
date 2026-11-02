@@ -1,5 +1,6 @@
 import { Box3, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three'
 import { BASE_UPGRADE, BASES, FARM, INDEX, PLAYTIME, RUN } from './config.js'
+import { sfx } from './audio/index.js'
 import * as bloxity from './bloxity.js'
 import { getYaw } from './camera.js'
 import { eggShell } from './climbRun.js'
@@ -155,10 +156,14 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
 
   function setActive(entry, on) {
     if (entry.on === on) return true
-    if (on && active().length >= slots()) return false
+    if (on && active().length >= slots()) {
+      sfx.deny()
+      return false
+    }
     entry.on = on
     if (on) addPet(entry, ...somewhere(), 1)
     else removePet(entry)
+    sfx.pop(on)
     changed()
     return true
   }
@@ -202,6 +207,7 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
 
   function hatch(egg) {
     egg.shake = 0
+    sfx.eggWobble(FARM.hatchTime)
     hud.prompt(null, 'farm')
   }
   function finishHatch(egg) {
@@ -209,6 +215,7 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
     const p = mesh.position
     const tab = pick(INDEX.tabs, (t) => FARM.tabChance[t.id])
     const pet = pick(eggOf(tier.egg).pets.filter((p) => p.tab === tab.id), (_, i) => FARM.weights[i] ?? 0)
+    sfx.reveal(RUN.tiers.indexOf(tier))
     bursts.emit({ layer: 'chunk', count: 40, pos: [p.x, 1.2, p.z], spread: [0.9, 1, 0.9], radial: 4, vel: [0, 3, 0], jitter: [2, 2, 2], gravity: -16, life: 0.8, size: 0.3, color: tier.shell[0], color2: tier.shell[2] })
     bursts.emit({ layer: 'glow', count: 12, pos: [p.x, 1.3, p.z], spread: [1, 1, 1], radial: 2, life: 0.7, size: 1.8, color: tier.color })
     bursts.emit({ count: 26, pos: [p.x, 1.4, p.z], spread: [1.1, 1.1, 1.1], radial: 3, life: 0.9, size: 0.34, color: '#ffffff', color2: tier.color })
@@ -231,6 +238,7 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
     if (tierIdx === null) return
     const entry = { tier: tierIdx, x: ghost.position.x, z: ghost.position.z }
     run.takeEgg()
+    sfx.eggPlace()
     save.placed.push(entry)
     addEgg(entry)
     store()
@@ -246,6 +254,7 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
 
   function upgrade() {
     if (maxed() || !hud.spend(upgradeCost())) return
+    sfx.upgrade()
     save.level++
     showUpgrade()
     changed()
@@ -269,7 +278,7 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
     nearSign = true
     const ready = !maxed() && hud.cash() >= upgradeCost()
     const text = maxed() ? 'Fully upgraded' : ready ? 'Upgrade' : `Need $${formatCash(upgradeCost())}`
-    showPrompt(sign.x, 5, sign.z, text, ready ? { hold: true, act: upgrade } : { act: () => {} })
+    showPrompt(sign.x, 5, sign.z, text, ready ? { hold: true, act: upgrade } : { act: sfx.deny })
   }
 
   function action() {
