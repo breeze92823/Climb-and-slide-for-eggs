@@ -1,0 +1,164 @@
+/* The Pets window (petsWindow.js), on the uiWindow.css shell, measured off the reference at 1917x990. */
+.pw-window {
+  --uiw-w: 804;
+  --uiw-h: 668;
+}
+.pw-window .uiw-dialog {
+  width: calc(788 * var(--uiw-u));
+  height: calc(628 * var(--uiw-u));
+}
+.pw-window .uiw-head {
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #4bb0f7;
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #17364e;
+}
+.pw-window .uiw-body {
+  padding: calc(14 * var(--uiw-u)) calc(12 * var(--uiw-u)) calc(10 * var(--uiw-u)) calc(16 * var(--uiw-u));
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #3d6b38;
+  border: calc(4 * var(--uiw-u)) solid #1f2f1a;
+  border-top: 0;
+  box-shadow: none;
+}
+
+.pw-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--uiw-u));
+  height: 100%;
+  padding: 0 calc(4 * var(--uiw-u)) calc(50 * var(--uiw-u)) 0; /* EQUIP BEST lies over the last row */
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(10, 15, 10, 0.55) transparent;
+}
+.pw-list::-webkit-scrollbar {
+  width: calc(12 * var(--uiw-u));
+}
+.pw-list::-webkit-scrollbar-thumb {
+  background: rgba(10, 15, 10, 0.55);
+  border: calc(3 * var(--uiw-u)) solid transparent;
+  background-clip: content-box;
+}
+.pw-row {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: calc(148 * var(--uiw-u));
+  min-height: 60px;
+  overflow: hidden;
+  padding-left: calc(14 * var(--uiw-u));
+  background: #39393b;
+  border: calc(3 * var(--uiw-u)) solid #17171a;
+}
+/* The pet's picture, faint and repeated, behind the row. */
+.pw-tile {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  background-size: calc(96 * var(--uiw-u));
+}
+.pw-thumb {
+  position: relative;
+  flex: none;
+  width: calc(128 * var(--uiw-u));
+  height: calc(126 * var(--uiw-u));
+  min-width: 52px;
+  min-height: 52px;
+  object-fit: cover;
+  object-position: 50% 12%;
+  background: color-mix(in srgb, var(--pw-tier) 38%, #1c2230);
+  border: calc(3 * var(--uiw-u)) solid #17171a;
+}
+.pw-thumb:not([src]) {
+  color: transparent;
+}
+.pw-text {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding-left: calc(16 * var(--uiw-u));
+}
+.pw-name {
+  overflow: hidden;
+  padding: calc(4 * var(--uiw-u));
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: max(16px, calc(36 * var(--uiw-u)));
+  --ow: 2.2;
+}
+.pw-cash {
+  margin-top: calc(6 * var(--uiw-u));
+  padding-left: calc(12 * var(--uiw-u));
+  font-size: max(13px, calc(29 * var(--uiw-u)));
+  font-style: italic;
+  color: #6dff72;
+  --ow: 2;
+}
+.pw-toggle {
+  position: relative;
+  flex: none;
+  align-self: flex-end;
+  width: calc(182 * var(--uiw-u));
+  height: calc(66 * var(--uiw-u));
+  min-width: 84px;
+  min-height: 44px;
+  margin: 0 calc(8 * var(--uiw-u)) calc(10 * var(--uiw-u)) 0;
+  padding: 0;
+  border: calc(2 * var(--uiw-u)) solid #17171a;
+  border-bottom-width: calc(5 * var(--uiw-u));
+  border-radius: calc(8 * var(--uiw-u));
+  color: #fff;
+  font: inherit;
+  font-size: max(14px, calc(31 * var(--uiw-u)));
+  cursor: pointer;
+  touch-action: manipulation;
+  --ow: 2;
+}
+.pw-toggle.off {
+  background: linear-gradient(#e8222c, #bc0f1a);
+}
+.pw-toggle.on {
+  background: linear-gradient(#5fe62e, #2fb81c);
+}
+.pw-toggle:hover {
+  filter: brightness(1.1);
+}
+.pw-toggle:active {
+  transform: scale(0.96);
+}
+
+/* Hangs off the bottom-left corner of the frame. */
+.pw-best {
+  position: absolute;
+  left: calc(20 * var(--uiw-u));
+  top: calc(578 * var(--uiw-u));
+  width: calc(258 * var(--uiw-u));
+  height: calc(70 * var(--uiw-u));
+  min-width: 120px;
+  min-height: 44px;
+  padding: 0;
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    linear-gradient(#9ae62e, #5cc21c);
+  border: calc(3 * var(--uiw-u)) solid #17171a;
+  border-bottom-width: calc(7 * var(--uiw-u));
+  border-radius: calc(9 * var(--uiw-u));
+  color: #fff;
+  font: inherit;
+  font-size: max(15px, calc(34 * var(--uiw-u)));
+  cursor: pointer;
+  touch-action: manipulation;
+  --ow: 2.2;
+}
+.pw-best:hover {
+  filter: brightness(1.08);
+}
+.pw-best:active {
+  transform: scale(0.96);
+}

@@ -1,0 +1,197 @@
+/* The Playtime Rewards window (playtimeWindow.js), on the uiWindow.css shell, measured off the reference at 1911x990. */
+.pt-window {
+  --uiw-w: 730;
+  --uiw-h: 584;
+}
+.pt-window .uiw-dialog {
+  width: calc(714 * var(--uiw-u));
+  height: calc(570 * var(--uiw-u));
+}
+.pt-window .uiw-head {
+  height: calc(78 * var(--uiw-u));
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #8fd65a;
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #2c3a20;
+}
+.pt-window .uiw-head h2 {
+  font-size: max(20px, calc(48 * var(--uiw-u)));
+  --ow: 3;
+}
+.pt-window .uiw-close {
+  width: max(44px, calc(62 * var(--uiw-u)));
+  height: max(44px, calc(62 * var(--uiw-u)));
+  font-size: max(22px, calc(42 * var(--uiw-u)));
+}
+.pt-window .uiw-body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(16 * var(--uiw-u)) calc(22 * var(--uiw-u)) 0;
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #3d6a2e;
+  border: calc(4 * var(--uiw-u)) solid #1f2f1a;
+  border-top: 0;
+  box-shadow: none;
+}
+
+/* --- The twelve rewards ----------------------------------------------------------------- */
+.pt-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: calc(14 * var(--uiw-u)) calc(23 * var(--uiw-u));
+  height: calc(372 * var(--uiw-u));
+  padding: calc(12 * var(--uiw-u)) calc(20 * var(--uiw-u));
+  background: rgba(28, 40, 24, 0.75);
+  border-radius: calc(8 * var(--uiw-u));
+}
+.pt-cell {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #11130f;
+  border: calc(2 * var(--uiw-u)) solid #27301f;
+  color: #fff;
+  font: inherit;
+  cursor: default;
+  touch-action: manipulation;
+}
+.pt-cell.on {
+  cursor: pointer;
+}
+.pt-cell.on:hover {
+  filter: brightness(1.2);
+}
+.pt-cell.on:active {
+  transform: scale(0.96);
+}
+.pt-cell.done .pt-art {
+  opacity: 0.35;
+}
+.pt-name {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  top: calc(8 * var(--uiw-u));
+  text-align: center;
+  font-size: max(11px, calc(23 * var(--uiw-u)));
+  --ow: 1.8;
+}
+.pt-art {
+  position: absolute;
+  left: 50%;
+  top: calc(30 * var(--uiw-u));
+  width: calc(96 * var(--uiw-u));
+  height: calc(76 * var(--uiw-u));
+  transform: translateX(-50%);
+}
+.pt-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
+.pt-art img:not([src]) {
+  visibility: hidden;
+}
+.pt-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pt-state {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: calc(5 * var(--uiw-u));
+  text-align: center;
+  font-size: max(11px, calc(23 * var(--uiw-u)));
+  --ow: 1.8;
+}
+.pt-cell.on .pt-state {
+  color: #c6f53a;
+}
+.pt-cell.done .pt-state {
+  color: #a8b0a4;
+}
+
+/* --- Footer ----------------------------------------------------------------------------- */
+.pt-foot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 calc(24 * var(--uiw-u)) 0 calc(10 * var(--uiw-u));
+}
+.pt-warn {
+  margin: 0;
+  font-size: max(14px, calc(36 * var(--uiw-u)));
+  color: #ff4f4f;
+  --ow: 2.4;
+}
+.pt-skip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6 * var(--uiw-u));
+}
+.pt-skip-word {
+  font-size: max(12px, calc(23 * var(--uiw-u)));
+  color: #ffc94a;
+  --ow: 1.8;
+}
+.pt-skip-btn {
+  width: calc(138 * var(--uiw-u));
+  height: calc(42 * var(--uiw-u));
+  min-width: 76px;
+  min-height: 34px;
+  padding: 0;
+  background: linear-gradient(#35e06a, #17b84e);
+  border: calc(2 * var(--uiw-u)) solid #15151b;
+  border-bottom-width: calc(5 * var(--uiw-u));
+  border-radius: calc(6 * var(--uiw-u));
+  color: #fff;
+  font: inherit;
+  font-size: max(12px, calc(24 * var(--uiw-u)));
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.pt-skip-btn:active {
+  transform: scale(0.95);
+}
+.pt-skip-btn span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--uiw-u));
+  --ow: 1.8;
+}
+.pt-skip-btn svg {
+  width: max(14px, calc(25 * var(--uiw-u)));
+}
+
+.pt-ad {
+  padding: calc(8 * var(--uiw-u)) calc(14 * var(--uiw-u));
+  min-height: 34px;
+  background: linear-gradient(#ffd24a, #f09a1a);
+  border: calc(2 * var(--uiw-u)) solid #15151b;
+  border-bottom-width: calc(5 * var(--uiw-u));
+  border-radius: calc(6 * var(--uiw-u));
+  color: #fff;
+  font: inherit;
+  font-size: max(12px, calc(24 * var(--uiw-u)));
+  --ow: 1.8;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.pt-ad[hidden] {
+  display: none;
+}
+.pt-ad:active {
+  transform: scale(0.95);
+}

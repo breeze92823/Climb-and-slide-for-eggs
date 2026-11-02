@@ -1,0 +1,13 @@
+/* The Trail Shop (trailShop.js): the Treadmill Shop's frame and cards (weightShop.css) with a blue bar. */
+.ts-window .uiw-head {
+  background:
+    linear-gradient(110deg, transparent 19%, rgba(255, 255, 255, 0.13) 19% 22.5%, transparent 22.5% 23.6%, rgba(255, 255, 255, 0.13) 23.6% 25.5%, transparent 25.5%),
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #3fa6ee;
+}
+.ts-window .ws-card .ws-art {
+  top: calc(10 * var(--uiw-u));
+}
+.ts-off {
+  cursor: pointer;
+}

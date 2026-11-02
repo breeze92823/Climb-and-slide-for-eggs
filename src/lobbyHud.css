@@ -1,0 +1,603 @@
+/* Lobby HUD (lobbyHud.js). Lengths are reference pixels (1920x990) times --lh-u, as in climbHud.css. */
+.lh-root {
+  --lh-u: max(0.5px, min(calc(100vw / 1920), calc(100vh / 990)));
+  --lh-studs: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Crect x='5' y='5' width='7' height='7' fill='%23fff' fill-opacity='.14'/%3E%3Cpath d='M5 5v7h7' fill='none' stroke='%23000' stroke-opacity='.25' stroke-width='1.1'/%3E%3C/svg%3E");
+  --lh-tap: max(44px, calc(112 * var(--lh-u)));
+  --lh-safe-l: env(safe-area-inset-left, 0px);
+  --lh-safe-r: env(safe-area-inset-right, 0px);
+  --lh-safe-b: env(safe-area-inset-bottom, 0px);
+  position: fixed;
+  inset: 0;
+  z-index: 14; /* above the touch zones, under the climb HUD */
+  overflow: hidden;
+  pointer-events: none;
+  font-family: 'Fredoka One', 'Fredoka', system-ui, sans-serif;
+  line-height: 1;
+  color: #fff;
+}
+.lh-root button {
+  pointer-events: auto;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.lh-root button:hover {
+  filter: brightness(1.08);
+}
+.lh-root button:active {
+  transform: scale(0.95);
+}
+.lh-root svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.lh-text {
+  -webkit-text-stroke: calc(5 * var(--lh-u)) #15151b;
+  paint-order: stroke fill;
+}
+.run-active .lh-root > :not(.lh-timer) {
+  display: none;
+}
+
+/* --- Top: Base, Play, Buy --------------------------------------------------------------- */
+.lh-nav {
+  position: absolute;
+  left: 50%;
+  top: var(--lh-nav-top, calc(env(safe-area-inset-top, 0px) + 3%));
+  transform: translateX(-50%);
+  display: flex;
+  gap: calc(18 * var(--lh-u));
+}
+.lh-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(16 * var(--lh-u));
+  width: calc(210 * var(--lh-u));
+  height: calc(72 * var(--lh-u));
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: calc(44 * var(--lh-u)) !important;
+  border: calc(3 * var(--lh-u)) solid #2a2a30 !important;
+}
+.lh-tab-base {
+  background: var(--lh-studs) 0 0 / calc(22 * var(--lh-u)), linear-gradient(180deg, #b39a6a, #8e784e) !important;
+}
+.lh-tab-buy {
+  background: var(--lh-studs) 0 0 / calc(22 * var(--lh-u)), linear-gradient(180deg, #4fb6e0, #2c86b8) !important;
+}
+.lh-tab-play {
+  width: calc(292 * var(--lh-u));
+  background: var(--lh-studs) 0 0 / calc(22 * var(--lh-u)), linear-gradient(180deg, #ffe08e, #f4b95c) !important;
+  border-color: #e8262f !important;
+  box-shadow: inset 0 calc(-6 * var(--lh-u)) 0 #e8262f;
+}
+.lh-tab-rail {
+  width: calc(26 * var(--lh-u));
+}
+
+.lh-tab-sell {
+  background: var(--lh-studs) 0 0 / calc(22 * var(--lh-u)), linear-gradient(180deg, #ee5a3a, #d43a2a) !important;
+}
+.lh-offline {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 12%);
+  transform: translateX(-50%);
+  display: none;
+  white-space: nowrap;
+  font-size: calc(32 * var(--lh-u));
+}
+.lh-offline.on {
+  display: block;
+}
+.lh-offline b {
+  font-weight: inherit;
+  color: #5dff5d;
+}
+.lh-prompt {
+  position: absolute;
+  display: none !important;
+  align-items: center;
+  gap: calc(14 * var(--lh-u));
+  min-height: 44px;
+  padding: calc(14 * var(--lh-u)) calc(26 * var(--lh-u)) calc(14 * var(--lh-u)) calc(14 * var(--lh-u)) !important;
+  transform: translate(-50%, -50%);
+  background: rgba(24, 24, 28, 0.78) !important;
+  border-radius: calc(10 * var(--lh-u));
+  font-family: 'Fredoka', system-ui, sans-serif !important;
+  font-size: calc(22 * var(--lh-u)) !important;
+  font-weight: 500;
+}
+.lh-prompt.on {
+  display: flex !important;
+}
+/* Hold prompts: a green fill sweeps across while E is held, and the key cap presses in. */
+.lh-prompt {
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  --hold: 0;
+}
+.lh-prompt > * {
+  position: relative;
+}
+.lh-prompt .lh-prompt-fill {
+  position: absolute;
+  inset: 0;
+  width: calc(var(--hold) * 100%);
+  background: linear-gradient(90deg, #35c24a, #5dff5d);
+  opacity: 0.85;
+  pointer-events: none;
+}
+.lh-prompt-hint {
+  display: none;
+  padding: calc(2 * var(--lh-u)) calc(10 * var(--lh-u));
+  border-radius: calc(20 * var(--lh-u));
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.7em;
+  opacity: 0.9;
+}
+.lh-prompt.hold .lh-prompt-hint {
+  display: block;
+}
+.lh-prompt.holding .lh-prompt-hint {
+  display: none;
+}
+.lh-prompt.holding .lh-prompt-key {
+  background: #fff;
+  color: #15151b;
+  transform: scale(0.92);
+}
+.lh-prompt:active {
+  transform: translate(-50%, -50%) scale(0.95) !important;
+}
+.lh-prompt-key {
+  display: grid;
+  place-items: center;
+  width: calc(46 * var(--lh-u));
+  height: calc(46 * var(--lh-u));
+  min-width: 24px;
+  min-height: 24px;
+  box-sizing: border-box;
+  border: calc(3 * var(--lh-u)) solid #fff;
+  border-radius: calc(9 * var(--lh-u));
+}
+.touch-ui .lh-prompt-key {
+  display: none;
+}
+
+/* --- Cards ----------------------------------------------------------------------------- */
+.lh-card {
+  position: relative;
+  width: var(--lh-tap);
+  height: var(--lh-tap);
+  box-sizing: border-box;
+  border: calc(4 * var(--lh-u)) solid #151319 !important;
+  border-radius: calc(12 * var(--lh-u));
+  background: var(--lh-studs) 0 0 / calc(20 * var(--lh-u)), linear-gradient(180deg, #3aa0e8, #2478c4) !important;
+}
+.lh-rebirth,
+.lh-ready {
+  background: var(--lh-studs) 0 0 / calc(20 * var(--lh-u)), linear-gradient(180deg, #a59560, #877844) !important;
+}
+.lh-index,
+.lh-shop {
+  background: var(--lh-studs) 0 0 / calc(20 * var(--lh-u)), linear-gradient(180deg, #6db06a, #4a9050) !important;
+}
+.lh-card-art {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: -12%;
+}
+.lh-card-word {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7%;
+  text-align: center;
+  font-size: calc(24 * var(--lh-u));
+  white-space: nowrap;
+}
+.lh-ribbon {
+  position: absolute;
+  right: -8%;
+  top: -7%;
+  padding: calc(3 * var(--lh-u)) calc(7 * var(--lh-u));
+  transform: rotate(-9deg);
+  font-size: calc(20 * var(--lh-u));
+  -webkit-text-stroke-width: calc(4 * var(--lh-u));
+  background: #e8262f;
+  border-radius: calc(4 * var(--lh-u));
+}
+.lh-mark,
+.lh-badge {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: calc(38 * var(--lh-u));
+  height: calc(38 * var(--lh-u));
+  font-size: calc(24 * var(--lh-u));
+  -webkit-text-stroke-width: calc(4 * var(--lh-u));
+}
+.lh-eggs .lh-mark,
+.lh-pets .lh-mark,
+.lh-rebirth .lh-mark {
+  display: none;
+}
+.lh-eggs.ready .lh-mark,
+.lh-pets.ready .lh-mark {
+  display: grid;
+  left: auto;
+  right: -9%;
+}
+.lh-rebirth.ready .lh-mark {
+  display: grid;
+}
+.lh-mark {
+  left: -9%;
+  top: -7%;
+  background: #35d15a;
+  border-radius: calc(6 * var(--lh-u));
+}
+.lh-badge {
+  left: -9%;
+  top: -7%;
+  background: #e8262f;
+  border-radius: 50%;
+}
+
+/* --- Left ------------------------------------------------------------------------------ */
+.lh-left {
+  position: absolute;
+  left: calc(var(--lh-safe-l) + 30 * var(--lh-u));
+  top: 30.5%;
+  display: flex;
+  gap: calc(16 * var(--lh-u));
+}
+.lh-feed {
+  position: absolute;
+  left: calc(var(--lh-safe-l) + 34 * var(--lh-u));
+  top: 42%;
+  height: calc(150 * var(--lh-u));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  gap: calc(10 * var(--lh-u));
+  font-size: calc(26 * var(--lh-u));
+  color: #5dff5d;
+}
+.lh-feed-line {
+  -webkit-text-stroke-width: calc(4 * var(--lh-u));
+  animation: lh-feed 4s linear forwards;
+}
+@keyframes lh-feed {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.lh-cash {
+  position: absolute;
+  left: calc(var(--lh-safe-l) + 30 * var(--lh-u));
+  top: 59%;
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--lh-u));
+  font-size: calc(50 * var(--lh-u));
+  font-style: italic;
+  color: #7dff5a;
+  -webkit-text-stroke-width: calc(6 * var(--lh-u));
+}
+.lh-cash-art {
+  width: calc(64 * var(--lh-u));
+  height: calc(40 * var(--lh-u));
+  transform: rotate(-22deg);
+  background: linear-gradient(180deg, #3fbf55 0 38%, #e8362f 38% 62%, #3fbf55 62%);
+  border: calc(4 * var(--lh-u)) solid #123a18;
+  border-radius: calc(5 * var(--lh-u));
+}
+
+/* --- Right ----------------------------------------------------------------------------- */
+.lh-offers {
+  position: absolute;
+  right: calc(var(--lh-safe-r) + 34 * var(--lh-u));
+  top: 11%;
+  width: calc(276 * var(--lh-u));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(22 * var(--lh-u));
+}
+.lh-offer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--lh-u));
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.lh-starter {
+  height: calc(126 * var(--lh-u));
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 50% 35%, #e0303a 0 45%, #8a1020 72%) !important;
+  border: calc(5 * var(--lh-u)) solid #20161a !important;
+}
+.lh-boost {
+  height: calc(86 * var(--lh-u));
+  border-radius: calc(16 * var(--lh-u));
+  background: linear-gradient(95deg, #ff7a5c, #ffd24a 45%, #6ee0ff) !important;
+  border: calc(5 * var(--lh-u)) solid #151319 !important;
+}
+.lh-offer-big {
+  font-size: calc(26 * var(--lh-u));
+}
+.lh-offer-price {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--lh-u));
+  font-size: calc(22 * var(--lh-u));
+}
+.lh-offer-price svg {
+  width: calc(26 * var(--lh-u));
+}
+.lh-grid {
+  position: absolute;
+  right: calc(var(--lh-safe-r) + 32 * var(--lh-u));
+  top: 41.5%;
+  display: grid;
+  grid-template-columns: var(--lh-tap) var(--lh-tap);
+  gap: calc(24 * var(--lh-u)) calc(16 * var(--lh-u));
+}
+.lh-pass {
+  position: relative;
+  grid-column: 1 / -1;
+  justify-self: end;
+  width: calc(150 * var(--lh-u));
+  min-width: 44px;
+  min-height: 44px;
+}
+.lh-pass-word {
+  display: block;
+  margin-top: calc(-12 * var(--lh-u));
+  font-size: calc(24 * var(--lh-u));
+  white-space: nowrap;
+}
+.lh-pass .lh-ribbon {
+  right: auto;
+  left: 22%;
+  top: -14%;
+  z-index: 1;
+}
+.lh-pass .lh-badge {
+  left: auto;
+  right: -6%;
+  top: 0;
+}
+
+/* --- Bottom ---------------------------------------------------------------------------- */
+.lh-perks {
+  position: absolute;
+  left: calc(var(--lh-safe-l) + 22 * var(--lh-u));
+  bottom: calc(var(--lh-safe-b) + 14 * var(--lh-u));
+  display: flex;
+  gap: calc(14 * var(--lh-u));
+}
+.lh-perk {
+  position: relative;
+  width: calc(66 * var(--lh-u));
+  min-width: 44px;
+}
+.lh-perk.ready::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: calc(20 * var(--lh-u));
+  height: calc(20 * var(--lh-u));
+  min-width: 12px;
+  min-height: 12px;
+  background: #e8262f;
+  border: calc(3 * var(--lh-u)) solid #15151b;
+  border-radius: 50%;
+}
+.lh-perk-word {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: calc(18 * var(--lh-u));
+  color: #6dff6d;
+  -webkit-text-stroke-width: calc(4 * var(--lh-u));
+}
+.lh-backpack {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--lh-safe-b) + 102 * var(--lh-u));
+  transform: translateX(-50%);
+  padding: calc(9 * var(--lh-u)) calc(32 * var(--lh-u)) !important;
+  min-height: 32px;
+  white-space: nowrap;
+  font-size: calc(26 * var(--lh-u)) !important;
+  -webkit-text-stroke-width: calc(4 * var(--lh-u));
+  background: rgba(46, 48, 58, 0.72) !important;
+}
+.lh-backpack:active {
+  transform: translateX(-50%) scale(0.95) !important;
+}
+.lh-timer {
+  position: absolute;
+  right: calc(var(--lh-safe-r) + 16 * var(--lh-u));
+  bottom: calc(var(--lh-safe-b) + 18 * var(--lh-u));
+  text-align: center;
+  font-size: calc(30 * var(--lh-u));
+  font-style: italic;
+  -webkit-text-stroke-width: calc(4 * var(--lh-u));
+  opacity: 0.85;
+}
+.lh-timer-t {
+  margin-top: calc(10 * var(--lh-u));
+}
+
+/* One line of news over everything, the windows too. */
+.lh-toast {
+  --lh-u: max(0.5px, min(calc(100vw / 1920), calc(100vh / 990)));
+  position: fixed;
+  z-index: 120;
+  left: 50%;
+  top: 22%;
+  display: none;
+  max-width: 92vw;
+  transform: translateX(-50%);
+  text-align: center;
+  font-family: 'Fredoka One', 'Fredoka', system-ui, sans-serif;
+  font-size: max(16px, calc(36 * var(--lh-u)));
+  color: #fff;
+  pointer-events: none;
+}
+.lh-toast.on {
+  display: block;
+  animation: lh-toast 2.6s linear forwards;
+}
+@keyframes lh-toast {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* --- Windows ---------------------------------------------------------------------------- */
+.lh-soon {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: max(20px, calc(46 * var(--uiw-u)));
+  grid-column: 1 / -1;
+}
+.lh-pack {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(170 * var(--uiw-u)), 1fr));
+  gap: calc(14 * var(--uiw-u));
+  height: 100%;
+  padding: calc(18 * var(--uiw-u));
+  overflow-y: auto;
+  align-content: start;
+}
+.lh-pack:has(> .lh-soon) {
+  align-content: stretch;
+}
+.lh-egg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(8 * var(--uiw-u));
+  min-height: 44px;
+  padding: calc(12 * var(--uiw-u));
+  border: calc(3 * var(--uiw-u)) solid transparent;
+  border-radius: calc(10 * var(--uiw-u));
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: max(13px, calc(22 * var(--uiw-u)));
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.lh-egg.on {
+  border-color: #ffb52e;
+}
+.lh-egg-shell {
+  width: calc(66 * var(--uiw-u));
+  height: calc(86 * var(--uiw-u));
+  border: calc(3 * var(--uiw-u)) solid #15151b;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  box-shadow: inset calc(-8 * var(--uiw-u)) calc(-8 * var(--uiw-u)) 0 rgba(0, 0, 0, 0.18);
+}
+
+/* --- Touch: the buttons in the bottom corners are the player's thumbs ---------------------- */
+.touch-ui .lh-perks {
+  display: none;
+}
+.touch-ui .lh-offers {
+  top: calc(env(safe-area-inset-top, 0px) + 68px);
+}
+.touch-ui .lh-grid {
+  top: calc(env(safe-area-inset-top, 0px) + 68px + 230 * var(--lh-u));
+}
+.touch-ui .lh-timer {
+  bottom: calc(var(--lh-safe-b) + 196px);
+}
+.run-active .lh-timer {
+  bottom: calc(var(--lh-safe-b) + 18 * var(--lh-u)) !important;
+}
+/* An upright phone: the tabs take the whole width, so the right column starts under them,
+   and the hotbar sits above the thumb arc. */
+@media (max-width: 600px) {
+  .lh-offline {
+    top: calc(env(safe-area-inset-top, 0px) + 104px);
+  }
+  .lh-offers,
+  .touch-ui .lh-offers {
+    top: calc(env(safe-area-inset-top, 0px) + 126px);
+  }
+  .lh-grid,
+  .touch-ui .lh-grid {
+    top: calc(env(safe-area-inset-top, 0px) + 252px);
+  }
+  .touch-ui .lh-backpack {
+    bottom: calc(var(--lh-safe-b) + 208px);
+  }
+  .touch-ui .rh-hotbar {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 158px);
+  }
+}
+/* A phone on its side: no room for the offers, the buttons go in rows above the thumb arc. */
+@media (max-height: 500px) {
+  .lh-offers,
+  .touch-ui .lh-timer:not(.run-active *) {
+    display: none;
+  }
+  .touch-ui .lh-grid,
+  .lh-grid {
+    top: calc(env(safe-area-inset-top, 0px) + 66px);
+    grid-template-columns: repeat(3, 48px);
+    gap: 6px;
+  }
+  .lh-grid .lh-card {
+    width: 48px;
+    height: 48px;
+  }
+  .lh-pass {
+    grid-column: auto;
+    width: 48px;
+  }
+  .lh-pass-word {
+    display: none;
+  }
+  .lh-left {
+    top: 128px;
+  }
+  .lh-offline {
+    top: calc(env(safe-area-inset-top, 0px) + 116px);
+  }
+  .lh-feed {
+    left: calc(var(--lh-safe-l) + 130px);
+    top: 186px;
+  }
+}

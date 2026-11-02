@@ -1,0 +1,429 @@
+/* Index window (indexWindow.js), on the uiWindow.css shell. Lengths are pixels of the
+   1914x990 reference times --uiw-u. The frame is centred with the variant tabs to its left
+   and the footer under it; a little low, because the reference leaves the HUD's top row free.
+   --uiw-w is the frame plus the tab column on both sides, so the centring holds. */
+.ix-overlay {
+  --uiw-w: 1160;
+  --uiw-h: 732;
+  --uiw-shift: 68;
+}
+
+.ix-count {
+  position: relative;
+  font-size: max(16px, calc(47 * var(--uiw-u)));
+  letter-spacing: -0.01em;
+  background: linear-gradient(#fff3bf 25%, #ffc65c 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* The outline is a copy of the text behind it: a stroke would hide the gradient fill. */
+.ix-count::before {
+  content: attr(data-text);
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  top: 0;
+  color: var(--uiw-ink);
+  -webkit-text-stroke: max(2px, calc(7 * var(--uiw-u))) var(--uiw-ink);
+}
+
+/* --- Variant tabs ------------------------------------------------------------------ */
+.ix-tabs {
+  position: absolute;
+  z-index: 2;
+  right: calc(100% - 38 * var(--uiw-u)); /* the footer sets the stack's width: 55 past the frame */
+  top: calc(45 * var(--uiw-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(13 * var(--uiw-u));
+  width: max(76px, calc(168 * var(--uiw-u)));
+}
+.ix-tab {
+  --lip: #000;
+  position: relative;
+  height: max(44px, calc(60 * var(--uiw-u)));
+  padding: 0 0 calc(3 * var(--uiw-u));
+  border: max(1px, calc(3 * var(--uiw-u))) solid #0d0d10;
+  border-bottom-width: max(2px, calc(6 * var(--uiw-u)));
+  border-radius: calc(9 * var(--uiw-u));
+  color: #fff;
+  font: inherit;
+  font-size: max(12px, calc(30 * var(--uiw-u)));
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.07s;
+}
+.ix-tab.on {
+  box-shadow: 0 0 0 max(1px, calc(3 * var(--uiw-u))) #fff;
+}
+.ix-tab:hover {
+  transform: scale(1.03);
+}
+.ix-tab:active {
+  transform: scale(0.97);
+}
+.t-normal {
+  background: linear-gradient(#c9cacf, #a9aab0);
+}
+.t-gold {
+  background: linear-gradient(#ecc61e, #dcaf17);
+}
+.t-diamond {
+  background: linear-gradient(#5be6e8, #2fa2dc);
+}
+.t-radioactive {
+  background: linear-gradient(#49ee4d, #2ba32f);
+  font-size: max(10px, calc(23.5 * var(--uiw-u)));
+}
+.t-rainbow {
+  background: linear-gradient(115deg, #58b079 0%, #2f5fd0 28%, #a33cc8 48%, #e0405f 62%, #e8a23a 78%, #b6d944 100%);
+  font-size: max(11px, calc(26 * var(--uiw-u)));
+}
+
+/* The tab's cash bonus: a pale bubble over the hovered tab (the selected one on touch). */
+.ix-tab-tip {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: calc(100% + 6 * var(--uiw-u));
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(182 * var(--uiw-u));
+  min-width: 70px;
+  height: max(26px, calc(44 * var(--uiw-u)));
+  transform: translateX(-52%);
+  background: linear-gradient(112deg, #e6e6e8 0 18%, #f5f5f6 18% 26%, #e6e6e8 26% 72%, #f5f5f6 72% 82%, #e6e6e8 82%);
+  border: max(1px, calc(1.5 * var(--uiw-u))) solid #3a3a42;
+  border-radius: calc(6 * var(--uiw-u));
+  font-size: max(13px, calc(30 * var(--uiw-u)));
+  pointer-events: none;
+}
+.ix-tab-tip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  border: calc(8 * var(--uiw-u)) solid transparent;
+  border-top-color: #2a2a32;
+  border-bottom-width: 0;
+  transform: translateX(-50%);
+}
+.ix-tab-tip i {
+  color: #ffe433;
+  --ow: 1.8;
+}
+.ix-tab-tip em {
+  font-style: inherit;
+  color: #36e04a;
+}
+@media (hover: hover) {
+  .ix-tab:hover .ix-tab-tip {
+    display: flex;
+  }
+}
+@media (hover: none) {
+  .ix-tab.on .ix-tab-tip {
+    display: flex;
+  }
+}
+
+/* --- Egg rows ---------------------------------------------------------------------- */
+.ix-list {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: calc(22 * var(--uiw-u)) calc(9 * var(--uiw-u)) calc(18 * var(--uiw-u)) calc(12 * var(--uiw-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(17 * var(--uiw-u));
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 calc(19 * var(--uiw-u)) calc(19 * var(--uiw-u));
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+.ix-list::-webkit-scrollbar {
+  width: calc(14 * var(--uiw-u));
+}
+.ix-list::-webkit-scrollbar-thumb {
+  background: rgba(10, 15, 10, 0.45);
+  border: calc(4.5 * var(--uiw-u)) solid transparent;
+  background-clip: content-box;
+}
+@supports not selector(::-webkit-scrollbar) {
+  .ix-list {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(10, 15, 10, 0.45) transparent;
+  }
+}
+.ix-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--uiw-u));
+  height: calc(174 * var(--uiw-u));
+  padding-right: calc(33 * var(--uiw-u));
+  background: rgba(40, 35, 40, 0.28);
+  border: max(1px, calc(3 * var(--uiw-u))) solid #030504;
+}
+
+.ix-egg {
+  position: relative;
+  flex: none;
+  width: calc(170 * var(--uiw-u));
+  height: 100%;
+}
+.ix-egg img {
+  position: absolute;
+  left: calc(16 * var(--uiw-u));
+  top: calc(8 * var(--uiw-u));
+  width: calc(138 * var(--uiw-u));
+  height: calc(138 * var(--uiw-u));
+}
+.ix-row img:not([src]) {
+  visibility: hidden; /* until its picture has rendered */
+}
+.ix-egg span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(14 * var(--uiw-u));
+  text-align: center;
+  font-size: max(11px, calc(27 * var(--uiw-u)));
+  white-space: nowrap;
+}
+.ix-arrow {
+  flex: none;
+  width: calc(64 * var(--uiw-u));
+  height: calc(64 * var(--uiw-u));
+  margin: 0 calc(10 * var(--uiw-u)) 0 calc(-6 * var(--uiw-u));
+}
+.ix-arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ix-card {
+  position: relative;
+  flex: none;
+  width: calc(136 * var(--uiw-u));
+  height: calc(136 * var(--uiw-u));
+  overflow: hidden;
+  background: var(--uiw-studs) 0 0 / calc(17 * var(--uiw-u)) calc(17 * var(--uiw-u)), var(--card);
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #111317;
+  border-radius: calc(3 * var(--uiw-u));
+}
+.ix-card img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.86; /* a silhouette lets the studs show through */
+  pointer-events: none;
+}
+.ix-card.known img {
+  opacity: 1;
+}
+.ix-card-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22.5%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: calc(10 * var(--uiw-u));
+  background:
+    linear-gradient(105deg, transparent 4%, #6a6a6c 4% 21%, transparent 21% 24%, #6a6a6c 24% 31%, transparent 31%) 0 calc(4 * var(--uiw-u)) / 100% calc(22 * var(--uiw-u)) no-repeat,
+    linear-gradient(#2c2c2e, #3b3b3d);
+  font-size: max(10px, calc(21 * var(--uiw-u)));
+  white-space: nowrap;
+}
+.ix-card-bar span {
+  --ow: 1.2;
+}
+.tier-white {
+  --card: linear-gradient(#f0f0f0, #d2d2d2);
+}
+.tier-blue {
+  --card: linear-gradient(#58d0fb, #33a3ee);
+}
+.tier-purple {
+  --card: linear-gradient(#d873ff, #a56bff);
+}
+.tier-gold {
+  --card: linear-gradient(#ffe066, #ffb52e);
+}
+.tier-red {
+  --card: linear-gradient(#ff7a6b, #e8322f);
+}
+.tier-green {
+  --card: linear-gradient(#8df27d, #3ccb4f);
+}
+.tier-rainbow {
+  --card: linear-gradient(135deg, #ff5d73, #ffb93f, #fff06a, #5fe58a, #5fc0ff, #b07bff);
+}
+
+/* --- Pet tooltip ------------------------------------------------------------------- */
+.ix-tip {
+  position: fixed;
+  z-index: 3;
+  --s: max(0.7px, var(--uiw-u));
+  width: calc(190 * var(--s));
+  padding: calc(9 * var(--s)) calc(14 * var(--s)) calc(8 * var(--s));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--uiw-studs) 0 0 / calc(17 * var(--s)) calc(17 * var(--s)), #fff;
+  border: max(1px, calc(2 * var(--s))) solid #0b0b0e;
+  color: #858585;
+  pointer-events: none;
+}
+.ix-tip[hidden] {
+  display: none;
+}
+.ix-tip-name {
+  font-size: calc(24 * var(--s));
+  white-space: nowrap;
+}
+.ix-tip hr {
+  width: 100%;
+  height: calc(3 * var(--s));
+  margin: calc(7 * var(--s)) 0 calc(5 * var(--s));
+  border: 0;
+  background: linear-gradient(90deg, transparent, #b5b5b5, transparent);
+}
+.ix-tip-cash {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--s));
+  font-size: calc(17 * var(--s));
+}
+.ix-tip-cash svg {
+  width: calc(32 * var(--s));
+  height: calc(23 * var(--s));
+}
+
+/* --- Footer ------------------------------------------------------------------------ */
+.ix-foot {
+  --tab: #878188;
+  --tab-word: #b9b9bf;
+  flex: none;
+  width: calc(894 * var(--uiw-u));
+  height: calc(98 * var(--uiw-u));
+  margin-top: calc(10 * var(--uiw-u));
+  padding: calc(6 * var(--uiw-u)) calc(25 * var(--uiw-u)) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(30, 25, 30, 0.46);
+  border: max(1px, calc(2 * var(--uiw-u))) solid rgba(40, 60, 35, 0.9);
+  box-shadow: 0 0 0 calc(1 * var(--uiw-u)) rgba(255, 255, 255, 0.12) inset;
+}
+.ix-foot p {
+  margin: 0;
+  height: calc(42 * var(--uiw-u));
+  display: flex;
+  align-items: center;
+  gap: 0.28em;
+  font-size: max(10px, calc(30.5 * var(--uiw-u)));
+  white-space: nowrap;
+  --ow: 1.8;
+  text-shadow: 0 calc(2 * var(--uiw-u)) 0 var(--uiw-ink);
+}
+.ix-cash {
+  color: #3ddc46;
+}
+.ix-word {
+  color: var(--tab-word);
+}
+[data-tab='gold'] .ix-foot {
+  --tab: #e9d352;
+  --tab-word: #ffdb45;
+}
+[data-tab='diamond'] .ix-foot {
+  --tab: #57cdea;
+  --tab-word: #63dcf2;
+}
+[data-tab='radioactive'] .ix-foot {
+  --tab: #4ae04e;
+  --tab-word: #58ec5c;
+}
+[data-tab='rainbow'] .ix-foot {
+  --tab: linear-gradient(90deg, #58b079, #2f5fd0, #a33cc8, #e0405f, #e8a23a, #b6d944);
+  --tab-word: #ff78d2;
+}
+.ix-bar {
+  position: relative;
+  flex: none;
+  width: 100%;
+  height: calc(36 * var(--uiw-u));
+  overflow: hidden;
+  background: rgba(20, 22, 18, 0.72);
+}
+.ix-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--tab);
+  transition: width 0.25s;
+}
+.ix-bar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(7 * var(--uiw-u));
+  font-size: max(10px, calc(25 * var(--uiw-u)));
+}
+.ix-bar-text svg {
+  width: calc(28 * var(--uiw-u));
+  height: calc(20 * var(--uiw-u));
+}
+.ix-bar-text span {
+  --ow: 1.2;
+}
+
+/* --- Portrait: no room beside the frame, so the tabs sit above it in a row ------------ */
+@media (max-aspect-ratio: 1/1) {
+  .ix-overlay {
+    --uiw-w: 800;
+    --uiw-h: 860;
+    --uiw-shift: 0;
+  }
+  .ix-overlay .uiw-dialog {
+    height: 62dvh; /* the frame's width is capped here, its height doesn't have to be */
+  }
+  .ix-tabs {
+    position: static;
+    order: -1;
+    flex-direction: row;
+    gap: calc(6 * var(--uiw-u));
+    width: calc(784 * var(--uiw-u));
+    margin-bottom: calc(12 * var(--uiw-u));
+    padding-top: 34px; /* the bonus bubble */
+  }
+  .ix-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    font-size: max(10px, calc(22 * var(--uiw-u)));
+  }
+  .t-radioactive {
+    font-size: max(8px, calc(19 * var(--uiw-u)));
+  }
+  .t-rainbow {
+    font-size: max(9px, calc(21 * var(--uiw-u)));
+  }
+  .ix-tab-tip {
+    transform: translateX(-50%);
+  }
+  .ix-foot {
+    width: calc(784 * var(--uiw-u));
+    height: auto;
+    padding-bottom: calc(10 * var(--uiw-u));
+  }
+}

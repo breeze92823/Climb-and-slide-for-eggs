@@ -1,0 +1,207 @@
+/* The Sell Animals window (sellWindow.js), on the uiWindow.css shell, measured off the reference at 1913x990. */
+.sw-window {
+  --uiw-w: 626;
+  --uiw-h: 640;
+}
+.sw-window .uiw-dialog {
+  width: calc(590 * var(--uiw-u));
+  height: calc(562 * var(--uiw-u));
+}
+.sw-window .uiw-head {
+  height: calc(74 * var(--uiw-u));
+  background:
+    linear-gradient(110deg, transparent 19%, rgba(255, 255, 255, 0.13) 19% 22.5%, transparent 22.5% 23.6%, rgba(255, 255, 255, 0.13) 23.6% 25.5%, transparent 25.5%),
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #e8525a;
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #2a1a1c;
+}
+.sw-window .uiw-head h2 {
+  font-size: max(20px, calc(47 * var(--uiw-u)));
+}
+.sw-window .uiw-close {
+  width: max(44px, calc(60 * var(--uiw-u)));
+  height: max(44px, calc(60 * var(--uiw-u)));
+  font-size: max(20px, calc(40 * var(--uiw-u)));
+}
+.sw-window .uiw-body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(12 * var(--uiw-u)) calc(12 * var(--uiw-u)) calc(14 * var(--uiw-u)) calc(18 * var(--uiw-u));
+}
+
+/* --- Total and Sell All ------------------------------------------------------------------- */
+.sw-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--uiw-u));
+  padding-right: calc(16 * var(--uiw-u));
+  height: calc(66 * var(--uiw-u));
+  min-height: 44px;
+}
+.sw-label {
+  font-size: max(15px, calc(37 * var(--uiw-u)));
+  --ow: 2.4;
+}
+.sw-total {
+  flex: 1;
+  font-size: max(15px, calc(37 * var(--uiw-u)));
+  font-style: italic;
+  color: #5dff5d;
+  --ow: 2.4;
+}
+.sw-all,
+.sw-sell,
+.sw-auto {
+  padding: 0;
+  border: calc(2 * var(--uiw-u)) solid #17171a;
+  border-bottom-width: calc(5 * var(--uiw-u));
+  border-radius: calc(7 * var(--uiw-u));
+  background: linear-gradient(#f23fc0, #c4189a);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  --ow: 2;
+}
+.sw-all:hover,
+.sw-sell:hover,
+.sw-auto:hover {
+  filter: brightness(1.1);
+}
+.sw-all:active,
+.sw-sell:active,
+.sw-auto:active {
+  transform: scale(0.96);
+}
+.sw-all {
+  flex: none;
+  width: calc(158 * var(--uiw-u));
+  height: calc(50 * var(--uiw-u));
+  min-width: 90px;
+  min-height: 40px;
+  font-size: max(14px, calc(29 * var(--uiw-u)));
+}
+.sw-all.off {
+  filter: saturate(0.3) brightness(0.75);
+}
+
+/* --- Pets -------------------------------------------------------------------------------- */
+.sw-list {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, calc(168 * var(--uiw-u)));
+  grid-auto-rows: calc(234 * var(--uiw-u));
+  gap: calc(14 * var(--uiw-u));
+  align-content: start;
+  padding: calc(6 * var(--uiw-u)) calc(8 * var(--uiw-u)) calc(60 * var(--uiw-u)) 0; /* Auto Sell lies over the bottom */
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(10, 15, 10, 0.55) transparent;
+}
+.sw-card {
+  position: relative;
+  background:
+    var(--uiw-studs) 0 0 / calc(24 * var(--uiw-u)) calc(24 * var(--uiw-u)),
+    #4a4a4d;
+  border: calc(2 * var(--uiw-u)) solid #2c2c2f;
+  text-align: center;
+}
+.sw-name {
+  position: absolute;
+  left: calc(26 * var(--uiw-u));
+  right: calc(26 * var(--uiw-u));
+  top: calc(8 * var(--uiw-u));
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #1b1c20;
+  font-size: max(11px, calc(21 * var(--uiw-u)));
+  line-height: calc(26 * var(--uiw-u));
+  --ow: 1.6;
+}
+.sw-pic {
+  position: absolute;
+  left: calc(26 * var(--uiw-u));
+  right: calc(26 * var(--uiw-u));
+  top: calc(34 * var(--uiw-u));
+  height: calc(118 * var(--uiw-u));
+  overflow: hidden;
+  background: color-mix(in srgb, var(--sw-tier) 35%, #2a6a8a);
+  border: calc(2 * var(--uiw-u)) solid #17171a;
+}
+.sw-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 12%;
+}
+.sw-pic img:not([src]) {
+  visibility: hidden;
+}
+.sw-kind {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(158 * var(--uiw-u));
+  font-size: max(10px, calc(19 * var(--uiw-u)));
+  --ow: 1.6;
+}
+.sw-price {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(180 * var(--uiw-u));
+  font-size: max(12px, calc(24 * var(--uiw-u)));
+  font-style: italic;
+  color: #5dff5d;
+  --ow: 2;
+}
+.sw-sell {
+  position: absolute;
+  left: calc(34 * var(--uiw-u));
+  right: calc(34 * var(--uiw-u));
+  bottom: calc(6 * var(--uiw-u));
+  height: calc(32 * var(--uiw-u));
+  min-height: 28px;
+  font-size: max(12px, calc(22 * var(--uiw-u)));
+  --ow: 1.8;
+}
+
+/* Hangs off the bottom-left corner of the frame; the dot is red off, green on. */
+.sw-auto {
+  position: absolute;
+  left: calc(10 * var(--uiw-u));
+  top: calc(528 * var(--uiw-u));
+  display: grid;
+  place-items: center;
+  width: calc(178 * var(--uiw-u));
+  height: calc(54 * var(--uiw-u));
+  min-width: 100px;
+  min-height: 44px;
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    linear-gradient(#f6943a, #e0661c);
+  font-size: max(15px, calc(32 * var(--uiw-u)));
+  --ow: 2.2;
+}
+.sw-dot {
+  position: absolute;
+  left: calc(-12 * var(--uiw-u));
+  top: calc(-14 * var(--uiw-u));
+  width: calc(30 * var(--uiw-u));
+  height: calc(30 * var(--uiw-u));
+  min-width: 16px;
+  min-height: 16px;
+  background: #e8262f;
+  border: calc(3 * var(--uiw-u)) solid #17171a;
+  border-radius: 50%;
+}
+.sw-auto.on .sw-dot {
+  background: #2ee04a;
+}

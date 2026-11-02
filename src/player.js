@@ -17,7 +17,10 @@ export const player = {
   grounded: true,
   facing: SPAWN_FACING, // yaw the character model faces, radians
   dims: { ...PLAYER_DIMS },
-  racing: false, // race.js drives position/renderPosition itself; the controller stands still
+  tilt: 0, // pitch of the drawn character, radians (the climb run lies back on the slide)
+  // While set, fn(dt) moves the player each tick instead of the controller (the climb run).
+  // Any reset clears it, so a respawn always ends a scripted move.
+  drive: null,
 }
 
 const HALF = PLAYER_DIMS.height / 2 // capsule centre above the feet
@@ -53,6 +56,8 @@ export function resetPlayer(spawn = SPAWN, facing = SPAWN_FACING) {
   player.velocity.x = player.velocity.y = player.velocity.z = 0
   player.grounded = true
   player.facing = facing
+  player.tilt = 0
+  player.drive = null
   body?.setTranslation({ x: spawn.x, y: spawn.y + HALF, z: spawn.z }, true)
   body?.setNextKinematicTranslation({ x: spawn.x, y: spawn.y + HALF, z: spawn.z })
 }
@@ -89,7 +94,12 @@ function step(dt) {
   prev.x = player.position.x
   prev.y = player.position.y
   prev.z = player.position.z
-  if (player.racing) return
+
+  if (player.drive) {
+    player.drive(dt)
+    body?.setNextKinematicTranslation({ x: player.position.x, y: player.position.y + HALF, z: player.position.z })
+    return
+  }
 
   // Camera-relative ground basis.
   const yaw = getYaw()

@@ -1,0 +1,88 @@
+/* The Growing Eggs window (eggsWindow.js): the Pets window's frame and rows (petsWindow.css), measured off the reference at 1920x990. */
+.ge-window .pw-list {
+  padding-bottom: 0;
+}
+.ge-row .pw-thumb {
+  object-fit: contain;
+  object-position: 50% 50%;
+  background: #2f6a3a;
+}
+.ge-row .pw-text {
+  padding-right: calc(24 * var(--uiw-u));
+}
+.ge-bar {
+  display: grid;
+  place-items: center;
+  height: calc(56 * var(--uiw-u));
+  min-height: 30px;
+  margin-top: calc(8 * var(--uiw-u));
+  background: linear-gradient(#3ee84a, #26c93a);
+  border: calc(3 * var(--uiw-u)) solid #9ef0a8;
+  font-size: max(14px, calc(30 * var(--uiw-u)));
+  --ow: 2.2;
+}
+.pw-toggle:disabled {
+  filter: saturate(0.3) brightness(0.8);
+  cursor: default;
+}
+
+/* Auto Hatch Eggs: a blue card at the end of the list, the price on a purple button. */
+.ge-auto {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: calc(148 * var(--uiw-u));
+  min-height: 60px;
+  padding-left: calc(24 * var(--uiw-u));
+  background:
+    var(--uiw-studs) 0 0 / calc(24 * var(--uiw-u)) calc(24 * var(--uiw-u)),
+    #5aa6e8;
+  border: calc(3 * var(--uiw-u)) solid #17171a;
+}
+.ge-auto-egg {
+  flex: none;
+  width: calc(106 * var(--uiw-u));
+  height: calc(134 * var(--uiw-u));
+  min-width: 40px;
+  background: #eaf4ff;
+  border: calc(3 * var(--uiw-u)) solid #9cc8f0;
+  border-radius: 50% 50% 48% 48% / 62% 62% 38% 38%;
+}
+.ge-auto-name {
+  flex: 1;
+  padding-left: calc(30 * var(--uiw-u));
+  font-size: max(16px, calc(44 * var(--uiw-u)));
+  line-height: 1.1;
+  --ow: 3;
+}
+.ge-auto-buy {
+  flex: none;
+  width: calc(200 * var(--uiw-u));
+  height: calc(70 * var(--uiw-u));
+  min-width: 90px;
+  min-height: 44px;
+  margin-right: calc(10 * var(--uiw-u));
+  padding: 0;
+  background: linear-gradient(#c43af0, #9a1ed0);
+  border: calc(3 * var(--uiw-u)) solid #17171a;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ge-auto-buy:active {
+  transform: scale(0.96);
+}
+.ge-auto-buy span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--uiw-u));
+  font-size: max(15px, calc(40 * var(--uiw-u)));
+  --ow: 2.4;
+}
+.ge-auto-buy svg {
+  width: max(14px, calc(38 * var(--uiw-u)));
+  filter: drop-shadow(0 0 1px #15151b) drop-shadow(0 0 1px #15151b);
+}

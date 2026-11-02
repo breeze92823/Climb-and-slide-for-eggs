@@ -1,0 +1,190 @@
+/* The Rebirth window (rebirthWindow.js), on the uiWindow.css shell, measured off the reference at 1911x990. */
+.rb-window {
+  --uiw-w: 944;
+  --uiw-h: 620;
+}
+.rb-window .uiw-dialog {
+  width: calc(928 * var(--uiw-u));
+  height: calc(604 * var(--uiw-u));
+}
+.rb-window .uiw-head {
+  height: calc(90 * var(--uiw-u));
+  gap: calc(12 * var(--uiw-u));
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #f26f68;
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #2a2320;
+}
+.rb-window .uiw-head h2 {
+  font-size: max(24px, calc(64 * var(--uiw-u)));
+}
+.rb-number {
+  font-size: max(24px, calc(64 * var(--uiw-u)));
+  color: #ffe83a;
+  --ow: 3.4;
+}
+.rb-window .uiw-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(26 * var(--uiw-u)) calc(32 * var(--uiw-u)) 0;
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #3e5c2e;
+  border: calc(5 * var(--uiw-u)) solid #1d2719;
+  border-top: 0;
+  box-shadow: none;
+}
+
+/* --- Rebirth n -> n + 1 ------------------------------------------------------------- */
+.rb-steps {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: calc(16 * var(--uiw-u));
+  width: 100%;
+}
+.rb-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(12 * var(--uiw-u));
+  flex: none;
+  width: calc(370 * var(--uiw-u));
+}
+.rb-label {
+  padding-left: calc(30 * var(--uiw-u));
+  font-size: max(13px, calc(30 * var(--uiw-u)));
+  font-style: italic;
+  --ow: 2;
+}
+.rb-stat {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(310 * var(--uiw-u));
+  height: calc(82 * var(--uiw-u));
+  margin-left: calc(60 * var(--uiw-u));
+  padding-left: calc(66 * var(--uiw-u));
+  background: linear-gradient(90deg, rgba(92, 190, 112, 0.55), rgba(70, 150, 96, 0.8));
+  border: calc(3 * var(--uiw-u)) solid rgba(30, 60, 36, 0.8);
+}
+.rb-cash {
+  position: absolute;
+  left: calc(-76 * var(--uiw-u));
+  top: 50%;
+  width: calc(136 * var(--uiw-u));
+  transform: translateY(-50%) rotate(-6deg);
+}
+.rb-cash svg {
+  display: block;
+  width: 100%;
+  stroke: #15151b;
+  stroke-width: 1.2;
+  paint-order: stroke;
+}
+.rb-value {
+  font-size: max(17px, calc(50 * var(--uiw-u)));
+  font-style: italic;
+  white-space: nowrap;
+  --ow: 3;
+}
+.rb-arrow {
+  flex: none;
+  width: calc(76 * var(--uiw-u));
+  margin-bottom: calc(10 * var(--uiw-u));
+}
+.rb-arrow svg {
+  display: block;
+  width: 100%;
+}
+
+/* --- Price ----------------------------------------------------------------------------- */
+.rb-note {
+  margin: calc(46 * var(--uiw-u)) 0 0;
+  font-size: max(15px, calc(44 * var(--uiw-u)));
+  color: #ff4b4b;
+  --ow: 2.6;
+}
+.rb-bar {
+  position: relative;
+  flex: none;
+  width: calc(858 * var(--uiw-u));
+  height: calc(68 * var(--uiw-u));
+  min-height: 28px;
+  margin-top: calc(24 * var(--uiw-u));
+  overflow: hidden;
+  background: #2c3f26;
+  border: calc(3 * var(--uiw-u)) solid #63b98a;
+}
+.rb-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(110deg, #7dc48e 0 22%, #9cd6a8 22% 26%, #7dc48e 26% 28%, #9cd6a8 28% 30%, #7dc48e 30%);
+}
+.rb-bar span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: max(15px, calc(38 * var(--uiw-u)));
+  --ow: 2.6;
+}
+
+/* --- Buttons --------------------------------------------------------------------------- */
+.rb-buttons {
+  display: flex;
+  justify-content: center;
+  gap: calc(18 * var(--uiw-u));
+  margin-top: calc(50 * var(--uiw-u));
+  width: 100%;
+}
+.rb-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--uiw-u));
+  height: calc(90 * var(--uiw-u));
+  min-height: 44px;
+  padding: 0;
+  border: calc(3 * var(--uiw-u)) solid #17171d;
+  border-bottom-width: calc(8 * var(--uiw-u));
+  border-radius: calc(10 * var(--uiw-u));
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.rb-button:hover {
+  filter: brightness(1.08);
+}
+.rb-button:active {
+  transform: scale(0.96);
+}
+.rb-go {
+  width: calc(232 * var(--uiw-u));
+  font-size: max(17px, calc(48 * var(--uiw-u)));
+  background: linear-gradient(#f4766e, #e0504c);
+  --ow: 2.6;
+}
+.rb-go.off {
+  filter: saturate(0.35) brightness(0.8);
+}
+.rb-skip {
+  width: calc(310 * var(--uiw-u));
+  font-size: max(12px, calc(31 * var(--uiw-u)));
+  background: linear-gradient(#b02ee0, #7d14b0);
+  --ow: 2;
+}
+.rb-price {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--uiw-u));
+  font-size: max(12px, calc(28 * var(--uiw-u)));
+}
+.rb-price svg {
+  width: max(14px, calc(30 * var(--uiw-u)));
+  filter: drop-shadow(0 0 1px #15151b) drop-shadow(0 0 1px #15151b);
+}

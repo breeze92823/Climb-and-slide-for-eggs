@@ -1,414 +1,289 @@
-// Pets window (the reference's "Pets!" popup), built on the same window shell as
-// the Rebirth window: title badge with an icon over the top-left corner, red X
-// top-right, white body, buttons straddling the bottom edge. The header carries
-// the help / lock / delete mode buttons and the equipped (1/3) + storage (1/100)
-// counters; the body is the pet grid (equipped first, then strongest); the
-// footer is Equip Best / Craft All / Unequip ALL.
-// Tap a pet to equip / unequip it. Lock mode: taps lock pets (locked pets are
-// never crafted or deleted). Delete mode: taps mark pets, the footer turns into
-// Cancel / Delete (n). Craft All turns every PETS.craftCount identical pets into
-// one of the next tier. State is saved by the server (snapshot / hydrate, net.js).
-// The shell is uiWindow.js (shared with Rebirth / Boats); pets.css only styles the contents.
-import { PETS } from './config.js'
-import { createWindow, replay, uiButton } from './uiWindow.js'
-import './pets.css' // after the shell's CSS
-import { sfx } from './audio/index.js'
-import { burst, centre } from './juice.js'
+import { speckle, voxelGeometry } from './voxel.js'
 
-const INK = '#1d1a22'
-const O = `stroke="${INK}" stroke-width="3.5" stroke-linejoin="round"`
+// The voxel pet and egg models, as filled ellipsoids and boxes in metres with the feet
+// on y = 0, front toward +Z. Each kind is generated once, on first use.
+const both = (fn) => [...fn(1), ...fn(-1)] // a part and its mirror image
 
-const ICONS = {
-  paw: `<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#2c2a33" stroke="${INK}" stroke-width="5">
-    <ellipse cx="50" cy="66" rx="22" ry="19"/><ellipse cx="20" cy="44" rx="10" ry="13"/><ellipse cx="38" cy="24" rx="10" ry="13"/>
-    <ellipse cx="62" cy="24" rx="10" ry="13"/><ellipse cx="80" cy="44" rx="10" ry="13"/></g>
-    <g fill="#55525e"><ellipse cx="44" cy="60" rx="9" ry="6"/><ellipse cx="17" cy="40" rx="4" ry="5"/><ellipse cx="35" cy="20" rx="4" ry="5"/><ellipse cx="59" cy="20" rx="4" ry="5"/><ellipse cx="77" cy="40" rx="4" ry="5"/></g></svg>`,
-  help: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M33 36a17 17 0 1 1 25 15c-5 3-8 6-8 12v3" fill="none" stroke="${INK}" stroke-width="22" stroke-linecap="round"/>
-    <path d="M33 36a17 17 0 1 1 25 15c-5 3-8 6-8 12v3" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/>
-    <circle cx="50" cy="84" r="11" fill="#fff" stroke="${INK}" stroke-width="5.5"/></svg>`,
-  lock: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M30 46V34a20 20 0 0 1 40 0v12" fill="none" stroke="${INK}" stroke-width="19"/>
-    <path d="M30 46V34a20 20 0 0 1 40 0v12" fill="none" stroke="#fff" stroke-width="9"/>
-    <rect x="18" y="44" width="64" height="46" rx="8" fill="#ffc72a" stroke="${INK}" stroke-width="6"/>
-    <rect x="24" y="50" width="52" height="10" rx="4" fill="#ffe27a"/><path d="M50 62v14" stroke="${INK}" stroke-width="9" stroke-linecap="round"/></svg>`,
-  trash: `<svg viewBox="0 0 100 100" aria-hidden="true"><g stroke="${INK}" stroke-width="6" stroke-linejoin="round">
-    <path d="M24 30h52l-5 60H29z" fill="#cfd6df"/><rect x="16" y="20" width="68" height="12" rx="5" fill="#e9eef3"/><path d="M40 20v-8h20v8" fill="none"/></g>
-    <path d="M40 42v38M50 42v38M60 42v38" stroke="#8a95a3" stroke-width="5" stroke-linecap="round"/></svg>`,
-  chest: `<svg viewBox="0 0 100 100" aria-hidden="true"><g stroke="${INK}" stroke-width="5.5" stroke-linejoin="round">
-    <path d="M12 44h76v42H12z" fill="#a8452b"/><path d="M12 44V32a14 14 0 0 1 14-14h48a14 14 0 0 1 14 14v12z" fill="#c4583a"/>
-    <path d="M12 44h76" fill="none"/><path d="M28 18v68M72 18v68" fill="none" stroke-width="5"/>
-    <rect x="40" y="36" width="20" height="20" rx="3" fill="#ffc72a"/></g><circle cx="50" cy="46" r="3.5" fill="${INK}"/></svg>`,
-  plus: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 22v56M22 50h56" stroke="${INK}" stroke-width="26" stroke-linecap="round"/>
-    <path d="M50 22v56M22 50h56" stroke="#fff" stroke-width="14" stroke-linecap="round"/></svg>`,
-  check: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="#2fc74a" stroke="#fff" stroke-width="8"/>
-    <path d="M29 51l14 14 29-30" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  locked: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="#ffb21a" stroke="#fff" stroke-width="8"/>
-    <path d="M37 47v-7a13 13 0 0 1 26 0v7" fill="none" stroke="#fff" stroke-width="8"/><rect x="29" y="45" width="42" height="28" rx="5" fill="#fff"/></svg>`,
-  mark: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="#ff2e3e" stroke="#fff" stroke-width="8"/>
-    <path d="M34 34l32 32M66 34L34 66" stroke="#fff" stroke-width="12" stroke-linecap="round"/></svg>`,
+const models = {
+  gorilla() {
+    const u = 0.14
+    const hide = speckle(u * 2, ['#3e4c78', '#465684', '#364469'], 11)
+    const dark = speckle(u * 2, ['#2c3858', '#333f62'], 12)
+    return [voxelGeometry([
+      ['e', 0, 1.9, -0.3, 1.25, 1.2, 1.3, hide], // back
+      ['e', 0, 2.0, 0.5, 1.15, 1.15, 0.9, hide], // chest
+      ['e', 0, 2.8, 1, 0.62, 0.62, 0.62, hide], // head
+      ['b', -0.46, 2.72, 1.42, 0.46, 3.0, 1.62, dark], // brow
+      ['b', -0.36, 2.76, 1.6, -0.12, 2.96, 1.66, '#f4f4f8'], // eyes
+      ['b', 0.12, 2.76, 1.6, 0.36, 2.96, 1.66, '#f4f4f8'],
+      ['b', -0.28, 2.8, 1.62, -0.18, 2.92, 1.7, '#10141e'],
+      ['b', 0.18, 2.8, 1.62, 0.28, 2.92, 1.7, '#10141e'],
+      ...both((m) => [
+        ['e', m * 1.45, 1.5, 0.9, 0.5, 1.05, 0.5, hide], // arms
+        ['b', m * 1.05, 0, 0.6, m * 1.9, 0.5, 1.5, dark], // knuckles
+        ['e', m * 0.75, 0.7, -1, 0.55, 0.75, 0.6, hide], // legs
+        ['b', m * 0.35, 0, -1.2, m * 1.15, 0.3, -0.3, dark],
+      ]),
+    ], u), 3]
+  },
+  mammoth() {
+    const u = 0.17
+    const fur = speckle(u * 2, ['#6a1f18', '#7c2a1e', '#541612'], 13)
+    const tusk = '#f2e8d0'
+    return [voxelGeometry([
+      ['e', 0, 2.8, -0.6, 1.5, 1.7, 2.2, fur],
+      ['b', -1.3, 2.1, -2.2, 1.3, 3.6, 1, fur],
+      ['e', 0, 3.2, 1.8, 1.05, 1.15, 1, fur], // head
+      ['b', -0.34, 0.2, 2.2, 0.34, 2.8, 2.9, fur], // trunk
+      ...both((m) => [
+        ['b', m * 0.55, 0, 0.1, m * 1.3, 1.6, 0.95, fur], // legs
+        ['b', m * 0.55, 0, -2.3, m * 1.3, 1.6, -1.45, fur],
+        ['b', m * 1, 2.4, 2.2, m * 1.35, 2.75, 2.6, tusk], // tusks
+        ['b', m * 1, 1.5, 2.5, m * 1.35, 2.6, 2.85, tusk],
+        ['b', m * 1, 1.3, 2.75, m * 1.3, 1.65, 3.5, tusk],
+        ['b', m * 0.75, 3.1, 2.62, m * 0.42, 3.42, 2.74, '#101014'], // eyes
+      ]),
+      ['b', -0.95, 4.3, 0.95, 0.95, 4.5, 2.65, '#17171d'], // hat brim
+      ['b', -0.62, 4.5, 1.3, 0.62, 5.2, 2.3, '#17171d'],
+      ['b', -0.64, 4.5, 1.28, 0.64, 4.68, 2.32, '#7c2020'],
+    ], u), 2]
+  },
+  seal() {
+    const u = 0.12
+    const skin = speckle(u * 2, ['#a79be6', '#b4a8ee', '#9a8edc'], 15)
+    return [voxelGeometry([
+      ['e', 0, 0.75, -0.8, 0.72, 0.68, 1.55, skin],
+      ['e', 0, 1.25, 0.7, 0.6, 0.72, 0.68, skin],
+      ...both((m) => [
+        ['b', m * 0.55, 0, 0.4, m * 1.35, 0.25, 1.1, skin],
+        ['b', m * 0.16, 1.45, 1.26, m * 0.34, 1.68, 1.36, '#15152a'],
+      ]),
+      ['b', -0.8, 0, -2.4, 0.8, 0.22, -2, skin],
+      ['b', -0.1, 1.2, 1.3, 0.1, 1.32, 1.42, '#3a2a60'],
+    ], u), 1.5]
+  },
+  diamond() {
+    const u = 0.11
+    const ice = speckle(u * 2, ['#27c6ea', '#4fdcf6', '#16aed8', '#8ff0ff'], 17)
+    return [voxelGeometry([
+      ['b', -0.95, 0.5, -0.8, 0.95, 2.1, 0.85, ice],
+      ['b', -0.7, 2.1, -0.55, 0.7, 2.9, 0.65, ice],
+      ...both((m) => [
+        ['b', m * 0.4, 0, -0.5, m * 1.1, 0.6, 0.5, ice],
+        ['b', m * 1, 0.8, -0.2, m * 1.5, 1.9, 0.4, ice],
+        ['b', m * 0.14, 2.42, 0.64, m * 0.4, 2.66, 0.72, '#0c3550'],
+      ]),
+    ], u), 1.8]
+  },
+  dragon() {
+    const u = 0.12
+    const scale = speckle(u * 2, ['#25e02c', '#16b81f', '#58f05a'], 19)
+    const wing = speckle(u * 2, ['#2cec34', '#1cc824'], 20)
+    return [voxelGeometry([
+      ['e', 0, 1.3, -0.3, 0.7, 0.75, 1.3, scale],
+      ['b', -0.26, 1.4, 0.8, 0.26, 2.5, 1.3, scale], // neck
+      ['e', 0, 2.65, 1.5, 0.44, 0.42, 0.7, scale],
+      ['b', -0.2, 0.9, -2.8, 0.2, 1.2, -1.3, scale], // tail
+      ['b', -0.12, 0.7, -3.4, 0.12, 0.96, -2.7, scale],
+      ...both((m) => [
+        ['b', m * 0.3, 0, 0.2, m * 0.72, 0.8, 0.7, scale],
+        ['b', m * 0.3, 0, -1, m * 0.72, 0.8, -0.5, scale],
+        ['b', m * 0.5, 1.9, -0.8, m * 1.6, 2.1, 0.5, wing],
+        ['b', m * 1.5, 2.2, -1.1, m * 2.6, 2.4, 0.4, wing],
+        ['b', m * 2.4, 2.6, -1.3, m * 3.2, 2.8, 0.1, wing],
+        ['b', m * 0.14, 2.74, 2.02, m * 0.3, 2.92, 2.14, '#101010'],
+      ]),
+    ], u), 1.8]
+  },
+  shark() {
+    const u = 0.12
+    const skin = speckle(u * 2, ['#1fd63a', '#14b52b', '#4ff05a'], 21)
+    return [voxelGeometry([
+      ['e', 0, 0.8, 0, 0.75, 0.75, 2.3, skin],
+      ['b', -0.1, 1.3, -0.5, 0.1, 2.2, 0.5, skin],
+      ['b', -0.1, 0.5, -3, 0.1, 1.9, -2, skin],
+      ...both((m) => [
+        ['b', m * 0.6, 0.45, -0.1, m * 1.6, 0.65, 0.7, skin],
+        ['b', m * 0.3, 0.98, 1.78, m * 0.52, 1.18, 1.86, '#0b1c10'],
+      ]),
+    ], u), 1.4]
+  },
+  puffer() {
+    const u = 0.1
+    const skin = speckle(u * 2, ['#ffb732', '#ffcd5a', '#f09a1e'], 23)
+    return [voxelGeometry([
+      ['e', 0, 0.75, 0, 0.72, 0.72, 0.72, skin],
+      ['b', -0.3, 1.32, -0.08, -0.14, 1.62, 0.08, '#fff2c4'],
+      ['b', 0.14, 1.32, -0.08, 0.3, 1.62, 0.08, '#fff2c4'],
+      ['b', -0.08, 0.5, 0.65, 0.08, 0.66, 0.82, '#e0462a'],
+      ...both((m) => [['b', m * 0.2, 0.86, 0.62, m * 0.44, 1.06, 0.76, '#101014']]),
+    ], u), 1.6]
+  },
+  minotaur() {
+    const u = 0.11
+    const fur = speckle(u * 2, ['#b5804e', '#a57040', '#c4905e'], 25)
+    const dark = '#5a3a24'
+    return [voxelGeometry([
+      ['b', -0.8, 1.5, -0.5, 0.8, 3, 0.5, fur], // torso
+      ['b', -0.86, 1.1, -0.56, 0.86, 1.6, 0.56, '#3b7a3a'], // kilt
+      ['e', 0, 3.4, 0.2, 0.62, 0.56, 0.62, fur],
+      ...both((m) => [
+        ['b', m * 0.2, 0, -0.34, m * 0.76, 1.3, 0.34, dark], // legs
+        ['b', m * 0.86, 1.6, -0.28, m * 1.34, 3, 0.28, fur], // arms
+        ['b', m * 0.5, 3.6, 0, m * 1.1, 3.82, 0.2, '#efe6d0'], // horns
+        ['b', m * 1, 3.82, 0, m * 1.2, 4.2, 0.2, '#efe6d0'],
+        ['b', m * 0.18, 3.46, 0.76, m * 0.36, 3.62, 0.84, '#101014'],
+      ]),
+    ], u), 2]
+  },
+  trex() {
+    const u = 0.12
+    const skin = speckle(u * 2, ['#c19a52', '#b08a46', '#d2ac62'], 27)
+    const belly = '#e6d29a'
+    return [voxelGeometry([
+      ['e', 0, 1.9, -0.4, 0.75, 0.85, 1.6, skin],
+      ['e', 0, 1.7, 0.2, 0.55, 0.7, 0.9, belly],
+      ['b', -0.2, 1.4, -3.8, 0.2, 1.8, -1.6, skin], // tail
+      ['b', -0.55, 2.5, 0.8, 0.55, 3.3, 2.5, skin], // head
+      ['b', -0.5, 2.2, 1.2, 0.5, 2.5, 2.4, belly], // jaw
+      ['b', -0.4, 2.46, 2.2, 0.4, 2.56, 2.5, '#ffffff'], // teeth
+      ...both((m) => [
+        ['b', m * 0.3, 0, -0.5, m * 0.8, 1.3, 0.2, skin],
+        ['b', m * 0.3, 0, 0, m * 0.8, 0.22, 0.7, skin],
+        ['b', m * 0.5, 1.9, 0.9, m * 0.7, 2.2, 1.5, skin], // little arms
+        ['b', m * 0.3, 3.0, 1.9, m * 0.58, 3.16, 2.0, '#101014'],
+      ]),
+    ], u), 1.8]
+  },
+  pigeon() {
+    const u = 0.08
+    const f = speckle(u * 2, ['#37e24a', '#22c237', '#8af07e'], 29)
+    return [voxelGeometry([
+      ['e', 0, 0.52, 0, 0.34, 0.34, 0.5, f],
+      ['e', 0, 0.92, 0.3, 0.22, 0.24, 0.24, f],
+      ['b', -0.06, 0.86, 0.5, 0.06, 0.94, 0.68, '#ffb030'],
+      ['b', -0.14, 0, 0, -0.06, 0.24, 0.08, '#ffb030'],
+      ['b', 0.06, 0, 0, 0.14, 0.24, 0.08, '#ffb030'],
+    ], u), 0.8]
+  },
+  cyanDog() {
+    const u = 0.08
+    const f = speckle(u * 2, ['#32d6ec', '#22bedc', '#7ceafa'], 31)
+    return [voxelGeometry([
+      ['b', -0.34, 0.36, -0.7, 0.34, 0.92, 0.5, f],
+      ['b', -0.32, 0.72, 0.4, 0.32, 1.28, 0.98, f],
+      ...both((m) => [
+        ['b', m * 0.12, 0, 0.2, m * 0.32, 0.38, 0.42, f],
+        ['b', m * 0.12, 0, -0.68, m * 0.32, 0.38, -0.46, f],
+        ['b', m * 0.14, 1.28, 0.5, m * 0.32, 1.52, 0.74, f],
+        ['b', m * 0.1, 1.02, 0.98, m * 0.22, 1.14, 1.02, '#0e2030'],
+      ]),
+    ], u), 1]
+  },
+  whiteCat() {
+    const u = 0.07
+    const f = speckle(u * 3, ['#f5f6fb', '#e4e7f2'], 33)
+    return [voxelGeometry([
+      ['e', 0, 0.4, -0.1, 0.34, 0.38, 0.5, f],
+      ['e', 0, 0.82, 0.24, 0.3, 0.28, 0.28, f],
+      ...both((m) => [
+        ['b', m * 0.12, 1.02, 0.2, m * 0.28, 1.24, 0.3, f],
+        ['b', m * 0.08, 0.84, 0.5, m * 0.18, 0.96, 0.56, '#20202c'],
+      ]),
+    ], u), 0.8]
+  },
+  duck() {
+    const u = 0.08
+    const f = speckle(u * 2, ['#ffdc32', '#ffc81e', '#fff07a'], 35)
+    return [voxelGeometry([
+      ['e', 0, 0.45, 0, 0.36, 0.34, 0.5, f],
+      ['e', 0, 0.9, 0.28, 0.25, 0.25, 0.25, f],
+      ['b', -0.12, 0.84, 0.5, 0.12, 0.92, 0.72, '#ff8a1e'],
+      ...both((m) => [['b', m * 0.08, 0.96, 0.5, m * 0.18, 1.06, 0.54, '#14141c']]),
+    ], u), 0.8]
+  },
+  polarEgg() {
+    const u = 0.12
+    const shell = speckle(u * 1.5, ['#f8fafe', '#e6ebf6', '#ffffff'], 37)
+    return [voxelGeometry([['e', 0, 1.15, 0, 0.95, 1.2, 0.95, shell]], u), 1.6]
+  },
 }
 
-// --- Pet portraits ------------------------------------------------------------------
-// Blocky "simulator" pets: one rounded cube body, big googly eyes and a per-kind
-// set of ears / markings. Colours here, stats in config (PETS.kinds).
-export const LOOKS = {
-  dog: { body: '#8b4a2b', dark: '#5a2c18', ears: 'floppy', nose: true },
-  cat: { body: '#f2a541', dark: '#c46f1c', ears: 'pointy', inner: '#ffb0c4', whiskers: true },
-  bunny: { body: '#f3ecf2', dark: '#d8c6d4', ears: 'long', inner: '#ffb0c4', nose: true },
-  bear: { body: '#7a4b2a', dark: '#4e2d16', ears: 'round', muzzle: '#c99a6b', nose: true },
-  fox: { body: '#ff7a1a', dark: '#c4500a', ears: 'pointy', inner: '#fff1e2', muzzle: '#fff1e2', nose: true },
-  panda: { body: '#f6f6f6', dark: '#24222a', ears: 'round', patches: true, nose: true },
-  dragon: { body: '#3fc45a', dark: '#23853a', ears: 'horns', belly: '#c8f27a', nostrils: true },
-  // Online Gifts pets (gifts.js): a leafy bark demon and a black one in green fire.
-  verdant: { body: '#6b3f22', dark: '#4a2914', wings: 'leaf', tuft: true, cheeks: true, mouth: true },
-  greenfire: { body: '#1c2616', dark: '#0e140a', flames: true, glowEyes: true },
-  // Daily Reward axolotls (daily.js): frilly gills either side of the head.
-  axolotl: { body: '#ffa8d4', dark: '#e872ad', gills: '#ff4f9a', cheeks: true, mouth: true },
-  blueAxolotl: { body: '#7fd2ff', dark: '#3d98e0', gills: '#2f6bff', cheeks: true, mouth: true },
-  ghostAxolotl: { body: '#2c3a8e', dark: '#1a2463', gills: '#4fe0ff', belly: '#4a5cc4', mouth: true },
-  sunAxolotl: { body: '#ffc21a', dark: '#e88a00', gills: '#ff4a1a', belly: '#fff07a', cheeks: true, mouth: true },
-  // Spin wheel jackpot (spin.js): a ruby demon with dark bat wings.
-  hugeDemon: { body: '#ff2a36', dark: '#9a1218', wings: 'bat', ears: 'horns', belly: '#ff8a90', mouth: true },
+const cache = new Map()
+// { geometry, height }: height is where the pet's label floats, in model metres.
+export function petModel(kind) {
+  let m = cache.get(kind)
+  if (!m) {
+    const [geometry, height] = models[kind]()
+    m = { geometry, height: height + 0.6 }
+    cache.set(kind, m)
+  }
+  return m
 }
 
-// The left half of a symmetric part plus its mirror image.
-const mirrored = (s) => `${s}<g transform="matrix(-1 0 0 1 100 0)">${s}</g>`
-
-const LEAF_WING = `<path d="M22 50 L3 20 L9 36 L0 42 L9 50 L1 60 L12 62 L20 70 Z" fill="#3fbf3a" ${O}/>
-  <path d="M19 54 L7 30 M15 55 L5 46 M16 61 L7 59" fill="none" stroke="#237a1f" stroke-width="2.5" stroke-linecap="round"/>`
-const BAT_WING = `<path d="M26 46 C16 30 6 24 0 16 C2 30 0 40 4 50 C8 46 12 48 12 54 C16 50 20 54 20 60 L28 58 Z" fill="#8a0f1a" ${O}/>
-  <path d="M24 48 L5 24 M18 52 L4 40" fill="none" stroke="#5a0610" stroke-width="2.5" stroke-linecap="round"/>`
-const GLOW_EYE =`<path d="M27 50 L45 56 L43 63 L28 59 Z" fill="#9dff3a" stroke="#0b1a06" stroke-width="2.5" stroke-linejoin="round"/>`
-
-// Three rounded fronds per side, poking out from behind the head.
-const gills = (c) => mirrored(`<g fill="${c}" ${O}><rect x="3" y="26" width="25" height="9" rx="4.5" transform="rotate(-28 27 30)"/>
-  <rect x="0" y="40" width="26" height="9" rx="4.5"/><rect x="3" y="54" width="25" height="9" rx="4.5" transform="rotate(28 27 58)"/></g>`)
-
-function behindBody(l) {
-  let s = ''
-  if (l.gills) s += gills(l.gills)
-  if (l.flames)
-    s += `<path d="M50 0 C56 10 66 6 64 18 C72 10 82 16 78 28 C90 22 98 36 90 46 C100 54 94 70 84 74 L16 74 C6 70 0 54 10 46 C2 36 10 22 22 28 C18 16 28 10 36 18 C34 6 44 10 50 0 Z" fill="#5cff2a" ${O}/>
-      <path d="M50 12 C54 20 62 18 60 28 C70 24 76 32 72 40 C82 40 86 54 78 62 L22 62 C14 54 18 40 28 40 C24 32 30 24 40 28 C38 18 46 20 50 12 Z" fill="#c8ff5a"/>`
-  if (l.wings === 'leaf') s += mirrored(LEAF_WING)
-  if (l.wings === 'bat') s += mirrored(BAT_WING)
-  if (l.tuft)
-    s += `<path d="M32 34 L30 14 L40 24 L46 6 L52 22 L60 10 L62 26 L72 18 L68 34 Z" fill="#3fbf3a" ${O}/>
-      <path d="M46 13 L48 30 M60 17 L58 30" stroke="#7ae05a" stroke-width="2.5" stroke-linecap="round"/>`
-  return s
+// The T-Rex egg on the arena floor: a stepped tan egg with a toothy grin.
+export function trexEgg() {
+  const u = 0.09
+  const shell = speckle(u * 2, ['#d4a650', '#c4943e', '#e0b866', '#b88a38'], 41)
+  const mouth = (x, y, z) => (Math.abs(y - 0.72) < 0.12 && z > 0 ? '#e8201e' : '#f8f4ea')
+  return voxelGeometry([
+    ['e', 0, 0.98, 0, 0.82, 1, 0.78, shell],
+    ['b', -0.84, 0.46, 0.2, 0.84, 0.98, 0.92, (x, y, z) => (((x / 0.84) ** 2 + ((y - 0.72) / 0.3) ** 2 + ((z + 0.1) / 1.04) ** 2) < 1.3 ? mouth(x, y, z) : null)],
+    ['b', -0.46, 1.18, 0.62, -0.26, 1.34, 0.86, '#16120c'],
+    ['b', 0.26, 1.18, 0.62, 0.46, 1.34, 0.86, '#16120c'],
+  ], u)
 }
 
-// The Eternal Star: a faceted pink star with angel wings and a little crown.
-function starPortrait() {
-  const wing = `<path d="M38 52 C26 40 12 34 4 14 C6 30 2 36 8 44 C2 46 4 54 12 56 C8 62 14 66 24 62 C22 68 30 70 38 62 Z" fill="#f6f2ff" ${O}/>
-    <path d="M10 30 C18 40 26 46 36 52 M8 46 C18 50 26 54 36 56" fill="none" stroke="#c9b6f2" stroke-width="2.5" stroke-linecap="round"/>`
-  const outer = [[50, 24], [82.3, 47.5], [70, 85.5], [30, 85.5], [17.7, 47.5]]
-  const inner = [[58.8, 45.9], [64.3, 62.6], [50, 73], [35.7, 62.6], [41.2, 45.9]]
-  const star = outer.flatMap((p, i) => [p, inner[i]]).map((p) => p.join(' ')).join(' L')
-  const facets = outer.map((p, i) => `M50 58 L${p.join(' ')} L${inner[i].join(' ')} Z`).join(' ')
-  return `<svg viewBox="0 0 100 100" aria-hidden="true">
-    <ellipse cx="50" cy="93" rx="26" ry="4" fill="#000" opacity=".18"/>
-    ${mirrored(wing)}
-    <path d="M${star} Z" fill="#e46cff"/>
-    <path d="${facets}" fill="#b845e6"/>
-    <path d="M50 31 L55 46 L50 52 L45 46 Z" fill="#fbc8ff"/>
-    <path d="M${star} Z" fill="none" ${O}/>
-    <path d="M38 26 L36 12 L44 18 L50 8 L56 18 L64 12 L62 26 Z" fill="#9b4dff" ${O}/>
-    <circle cx="50" cy="19" r="2.6" fill="#ffd84a"/>
-  </svg>`
+// One end of the training dumbbell: a stepped dark ball with a hub ring.
+export function dumbbellPlate() {
+  const u = 0.09
+  const rubber = speckle(u * 2, ['#2f3b3c', '#273233', '#37474a'], 43)
+  return voxelGeometry([
+    ['e', 0, 0, 0, 0.95, 0.95, 0.7, rubber],
+    ['b', -0.2, -0.2, 0.55, 0.2, 0.2, 0.74, '#7a8688'],
+    ['b', -0.1, -0.1, 0.6, 0.1, 0.1, 0.78, '#2f3b3c'],
+  ], u)
 }
 
-function earsBehind(l) {
-  if (l.ears === 'pointy')
-    return `<path d="M22 40 L25 10 L46 32 Z" fill="${l.body}" ${O}/><path d="M78 40 L75 10 L54 32 Z" fill="${l.body}" ${O}/>
-      <path d="M27 34 L28 18 L39 30 Z" fill="${l.inner}"/><path d="M73 34 L72 18 L61 30 Z" fill="${l.inner}"/>`
-  if (l.ears === 'long')
-    return `<ellipse cx="36" cy="18" rx="8" ry="18" fill="${l.body}" ${O}/><ellipse cx="64" cy="18" rx="8" ry="18" fill="${l.body}" ${O}/>
-      <ellipse cx="36" cy="19" rx="3.5" ry="12" fill="${l.inner}"/><ellipse cx="64" cy="19" rx="3.5" ry="12" fill="${l.inner}"/>`
-  if (l.ears === 'round')
-    return `<circle cx="26" cy="31" r="10" fill="${l.dark}" ${O}/><circle cx="74" cy="31" r="10" fill="${l.dark}" ${O}/>`
-  if (l.ears === 'horns')
-    return `<path d="M28 34 L24 12 L40 30 Z" fill="#ffd84a" ${O}/><path d="M72 34 L76 12 L60 30 Z" fill="#ffd84a" ${O}/>
-      <path d="M42 30 L46 20 L50 30 L54 20 L58 30 Z" fill="${l.dark}" ${O}/>`
-  return ''
+// The secret jellyfish: a pink bell over tentacle ribbons, floating with feet at y = 0.
+export function jellyfish() {
+  const u = 0.1
+  const pink = speckle(u * 2, ['#ff7ad6', '#ff62cc', '#ff90de'], 45)
+  const bright = speckle(u * 2, ['#ff3cc8', '#ff24be', '#ff58d2'], 46)
+  return voxelGeometry([
+    ['b', -1.25, 3.9, -1.25, 1.25, 4.6, 1.25, pink], // the cap
+    ['b', -0.95, 4.6, -0.95, 0.95, 4.85, 0.95, pink],
+    ['b', -0.9, 3.5, -0.9, 0.9, 3.9, 0.9, bright], // the face under it
+    ['b', -1.3, 3.15, -1.3, 1.3, 3.55, 1.3, pink], // the skirt
+    ['b', -0.58, 3.58, 0.9, -0.14, 3.86, 0.98, '#ffffff'],
+    ['b', 0.14, 3.58, 0.9, 0.58, 3.86, 0.98, '#ffffff'],
+    ['b', -0.44, 3.6, 0.94, -0.24, 3.84, 1.02, '#1a1036'],
+    ['b', 0.24, 3.6, 0.94, 0.44, 3.84, 1.02, '#1a1036'],
+    // Long ribbons, a touch shorter at the edges.
+    ...[-0.75, -0.25, 0.25, 0.75].flatMap((x, i) => [
+      ['b', x - 0.2, i === 0 || i === 3 ? 0.5 : 0.05, 0.1, x + 0.2, 3.2, 0.5, bright],
+      ['b', x - 0.2, i === 0 || i === 3 ? 0.7 : 0.3, -0.5, x + 0.2, 3.2, -0.1, bright],
+    ]),
+  ], u)
 }
 
-export function petPortrait(kind) {
-  if (kind === 'star') return starPortrait()
-  const l = LOOKS[kind] ?? LOOKS.dog
-  const eye = (x) => `<ellipse cx="${x}" cy="54" rx="8.5" ry="9.5" fill="#fff" ${O}/><circle cx="${x + 1}" cy="57" r="4.6" fill="${INK}"/><circle cx="${x + 2.6}" cy="55" r="1.7" fill="#fff"/>`
-  return `<svg viewBox="0 0 100 100" aria-hidden="true">
-    <ellipse cx="50" cy="93" rx="30" ry="4.5" fill="#000" opacity=".18"/>
-    ${behindBody(l)}
-    <rect x="28" y="80" width="13" height="12" rx="3" fill="${l.dark}" ${O}/><rect x="59" y="80" width="13" height="12" rx="3" fill="${l.dark}" ${O}/>
-    ${earsBehind(l)}
-    <rect x="19" y="30" width="62" height="56" rx="10" fill="${l.body}" ${O}/>
-    <rect x="25" y="34" width="50" height="6" rx="3" fill="#fff" opacity=".28"/>
-    ${l.belly ? `<rect x="34" y="64" width="32" height="18" rx="6" fill="${l.belly}"/>` : ''}
-    ${l.muzzle ? `<ellipse cx="50" cy="71" rx="14" ry="9" fill="${l.muzzle}"/>` : ''}
-    ${l.patches ? `<ellipse cx="37" cy="55" rx="11" ry="13" fill="${l.dark}" transform="rotate(20 37 55)"/><ellipse cx="63" cy="55" rx="11" ry="13" fill="${l.dark}" transform="rotate(-20 63 55)"/>` : ''}
-    ${l.glowEyes ? `${mirrored(GLOW_EYE)}<path d="M40 73 L60 73" stroke="#6dff2e" stroke-width="3" stroke-linecap="round"/>` : `${eye(37)}${eye(61)}`}
-    ${l.cheeks ? `<ellipse cx="29" cy="67" rx="5" ry="3" fill="#ff8fb0" opacity=".8"/><ellipse cx="71" cy="67" rx="5" ry="3" fill="#ff8fb0" opacity=".8"/>` : ''}
-    ${l.mouth ? `<path d="M44 68 q3 3 6 0 q3 3 6 0" fill="none" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>` : ''}
-    ${l.nose ? `<path d="M45 66h10l-5 5z" fill="${INK}" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/><path d="M50 71v3m-5 1q5 3 10 0" fill="none" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>` : ''}
-    ${l.nostrils ? `<circle cx="45" cy="70" r="2" fill="${INK}"/><circle cx="55" cy="70" r="2" fill="${INK}"/>` : ''}
-    ${l.whiskers ? `<path d="M48 68h4l-2 2.5z" fill="#ff7aa0" stroke="${INK}" stroke-width="2"/><path d="M24 66h12M24 72l12-3M76 66H64M76 72l-12-3" stroke="${INK}" stroke-width="2.2" stroke-linecap="round"/>` : ''}
-    ${l.ears === 'floppy' ? `<rect x="9" y="30" width="15" height="31" rx="7" fill="${l.dark}" ${O} transform="rotate(14 16 45)"/><rect x="76" y="30" width="15" height="31" rx="7" fill="${l.dark}" ${O} transform="rotate(-14 84 45)"/>` : ''}
-  </svg>`
+// The heap of gold under the gifts.
+export function coinHeap(width, height, depth) {
+  const u = 0.13
+  const gold = speckle(u, ['#ffd93a', '#ffc81e', '#ffe878', '#f0ae14'], 47)
+  return voxelGeometry([['e', 0, 0, 0, width / 2, height, depth / 2, gold]], u)
 }
 
-// --- State ------------------------------------------------------------------------------
-// pets: [{ uid, kind, tier, equipped, locked }]; slots / storage can grow (the + buttons).
-export const petsState = { pets: [], slots: PETS.equipSlots, storage: PETS.storage, nextUid: 1 }
-
-export const petMultiplier = (p) => (PETS.kinds[p.kind]?.mult ?? 1) * (PETS.tiers[p.tier]?.mult ?? 1)
-
-// The equipped pets' combined boost: each adds its multiplier above 1 (one 1.1x pet = 1.1x).
-export function petBoost() {
-  let boost = 1
-  for (const p of petsState.pets) if (p.equipped) boost += petMultiplier(p) - 1
-  return boost
-}
-
-// 1.1 -> "1.1x", 2.5 -> "2.5x", 12 -> "12x", 1500 -> "1.5Kx".
-export function formatMult(n) {
-  if (n >= 1000) return `${Math.floor(n / 100) / 10}Kx`
-  return `${n >= 100 ? Math.round(n) : Math.round(n * 100) / 100}x`
-}
-
-function newPet(kind, tier = 0) {
-  return { uid: petsState.nextUid++, kind, tier, equipped: false, locked: false }
-}
-
-// The saved part (net.js; backend sanitize.ts): the pets without their per-session uids, the slots and storage.
-export function snapshot() {
-  const { pets, slots, storage } = petsState
-  return { pets: pets.map(({ kind, tier, equipped, locked }) => ({ kind, tier, equipped, locked })), petSlots: slots, petStorage: storage }
-}
-
-// A loaded save over a fresh start (unknown kinds / tiers dropped). A save without pets is a new
-// player: they get the starter pets (none by default: pets are bought from eggs).
-function applySave(s) {
-  petsState.slots = PETS.equipSlots
-  petsState.storage = PETS.storage
-  if (Number.isFinite(s.petSlots) && s.petSlots >= PETS.equipSlots) petsState.slots = Math.floor(s.petSlots)
-  if (Number.isFinite(s.petStorage) && s.petStorage >= PETS.storage) petsState.storage = Math.floor(s.petStorage)
-  if (!Array.isArray(s.pets)) {
-    petsState.pets = PETS.starter.map((kind) => ({ ...newPet(kind), equipped: true }))
-    return
+// The curved stone horns of the portal (one horn, tip at the top).
+export function portalHorn(radius, height, thickness) {
+  const u = 0.11
+  const stone = (x, y, z) => (z > thickness * 0.1 ? '#d6dbe2' : '#a8afb9')
+  const shapes = []
+  for (let i = 0; i <= 36; i++) {
+    const t = i / 36
+    const a = t * Math.PI * 0.5
+    const r = thickness * (1 - t * 0.92)
+    shapes.push(['e', radius * (1 - Math.cos(a)), height * Math.sin(a), 0, r, r * 1.2, r, stone])
   }
-  petsState.pets = s.pets
-    .filter((p) => p && PETS.kinds[p.kind] && PETS.tiers[p.tier])
-    .map((p) => ({ ...newPet(p.kind, p.tier), equipped: p.equipped === true, locked: p.locked === true }))
-}
-
-// Header: mode buttons + counters riding the top border right of the title (a row at
-// the top of the body on small screens, see pets.css).
-const BODY = `
-  <div class="pt-head">
-    <div class="pt-tools">
-      <button type="button" class="pt-tool pt-help" aria-label="Help">${ICONS.help}</button>
-      <button type="button" class="pt-tool pt-lock" aria-label="Lock mode" aria-pressed="false">${ICONS.lock}</button>
-      <button type="button" class="pt-tool pt-trash" aria-label="Delete mode" aria-pressed="false">${ICONS.trash}</button>
-    </div>
-    <div class="pt-counts">
-      <span class="pt-count pt-count-equip"><span class="pt-count-icon">${ICONS.paw}</span><span class="uiw-text" data-pt="equipped"></span>
-        <button type="button" class="pt-plus" aria-label="More pet slots">${ICONS.plus}</button></span>
-      <span class="pt-count pt-count-storage"><span class="pt-count-icon">${ICONS.chest}</span><span class="uiw-text" data-pt="stored"></span>
-        <button type="button" class="pt-plus" aria-label="More pet storage">${ICONS.plus}</button></span>
-    </div>
-  </div>
-  <div class="pt-grid"></div>
-  <div class="pt-empty">No pets yet! Hatch eggs to get some.</div>
-  <div class="pt-hint uiw-text"></div>
-  <div class="pt-help-card" hidden>
-    <p>Tap a pet to <b>equip</b> it. Equipped pets boost your trophies.</p>
-    <p><b>Craft All</b> turns ${PETS.craftCount} of the same pet into a stronger one.</p>
-    <p><b>Lock</b> keeps a pet safe from crafting and deleting.</p>
-  </div>`
-
-// Builds the window. Returns { open, close, toggle, isOpen, addPet, boost, snapshot, hydrate }.
-// actions: { onChange(boost) } fires whenever the equipped boost may have changed.
-export function createPets(actions = {}) {
-  applySave({}) // the starter pets until the server's save loads (hydrate)
-
-  const win = createWindow({ title: 'Pets!', icon: ICONS.paw, className: 'pets-window', onOpen: reset })
-  const { overlay, dialog, body } = win
-  body.innerHTML = BODY
-
-  const q = (s) => overlay.querySelector(s)
-  const grid = q('.pt-grid')
-  const hint = q('.pt-hint')
-  const helpCard = q('.pt-help-card')
-  const lockBtn = q('.pt-lock')
-  const trashBtn = q('.pt-trash')
-  const field = {}
-  for (const el of overlay.querySelectorAll('[data-pt]')) field[el.dataset.pt] = el
-
-  // Footer: straddles the bottom border, left-aligned like the reference.
-  const craftBtn = uiButton('Craft All', 'blue', craftAll, 'pt-btn pt-craft')
-  const deleteBtn = uiButton('Delete', 'red', deleteMarked, 'pt-btn pt-delete')
-  const buttons = document.createElement('div')
-  buttons.className = 'uiw-btns pt-buttons'
-  buttons.append(
-    uiButton('Equip Best', 'green', equipBest, 'pt-btn pt-best'),
-    craftBtn,
-    uiButton('Unequip ALL', 'orange', unequipAll, 'pt-btn pt-unequip'),
-    uiButton('Cancel', 'blue', () => setMode('delete'), 'pt-btn pt-cancel'),
-    deleteBtn,
-  )
-  dialog.append(buttons)
-
-  let mode = 'equip' // 'equip' | 'lock' | 'delete'
-  const marked = new Set() // uids picked for deletion
-
-  const equippedCount = () => petsState.pets.reduce((n, p) => n + (p.equipped ? 1 : 0), 0)
-  const sorted = () => [...petsState.pets].sort((a, b) => b.equipped - a.equipped || petMultiplier(b) - petMultiplier(a) || a.uid - b.uid)
-
-  function changed() {
-    render()
-    actions.onChange?.(petBoost())
-  }
-
-  function render() {
-    field.equipped.textContent = `${equippedCount()}/${petsState.slots}`
-    field.stored.textContent = `${petsState.pets.length}/${petsState.storage}`
-    dialog.dataset.mode = mode
-    lockBtn.classList.toggle('on', mode === 'lock')
-    lockBtn.setAttribute('aria-pressed', String(mode === 'lock'))
-    trashBtn.classList.toggle('on', mode === 'delete')
-    trashBtn.setAttribute('aria-pressed', String(mode === 'delete'))
-    deleteBtn.textContent = `Delete (${marked.size})`
-    hint.textContent = mode === 'lock' ? 'Tap pets to lock / unlock them' : mode === 'delete' ? 'Tap pets to delete' : ''
-    q('.pt-empty').hidden = petsState.pets.length > 0
-
-    grid.replaceChildren(
-      ...sorted().map((p) => {
-        const card = document.createElement('button')
-        card.type = 'button'
-        card.className = `pt-pet t-${p.tier}`
-        card.dataset.uid = p.uid
-        card.classList.toggle('equipped', p.equipped)
-        card.classList.toggle('locked', p.locked)
-        card.classList.toggle('marked', marked.has(p.uid))
-        const kind = PETS.kinds[p.kind]
-        const tier = PETS.tiers[p.tier]
-        card.setAttribute('aria-label', `${tier.name === 'Normal' ? '' : `${tier.name} `}${kind.name}, ${formatMult(petMultiplier(p))}${p.equipped ? ', equipped' : ''}`)
-        card.innerHTML = `<span class="pt-pet-disc r-${kind.rarity}">${petPortrait(p.kind)}</span>
-          <span class="pt-pet-mult uiw-text">${formatMult(petMultiplier(p))}</span>
-          <span class="pt-badge pt-badge-equip">${ICONS.check}</span>
-          <span class="pt-badge pt-badge-lock">${ICONS.locked}</span>
-          <span class="pt-badge pt-badge-mark">${ICONS.mark}</span>`
-        return card
-      }),
-    )
-  }
-
-  function setMode(next) {
-    mode = mode === next ? 'equip' : next
-    marked.clear()
-    helpCard.hidden = true
-    render()
-  }
-
-  function tapPet(card) {
-    const p = petsState.pets.find((x) => x.uid === Number(card.dataset.uid))
-    if (!p) return
-    if (mode === 'lock') {
-      p.locked = !p.locked
-    } else if (mode === 'delete') {
-      if (p.locked) return replay(card, 'shake')
-      if (marked.has(p.uid)) marked.delete(p.uid)
-      else marked.add(p.uid)
-      return render()
-    } else if (p.equipped) {
-      p.equipped = false
-    } else if (equippedCount() < petsState.slots) {
-      p.equipped = true
-    } else {
-      replay(card, 'shake')
-      return replay(q('.pt-count-equip'), 'shake')
-    }
-    changed()
-    replay(grid.querySelector(`[data-uid="${p.uid}"]`), 'bump')
-  }
-
-  function equipBest() {
-    const best = [...petsState.pets].sort((a, b) => petMultiplier(b) - petMultiplier(a)).slice(0, petsState.slots)
-    for (const p of petsState.pets) p.equipped = best.includes(p)
-    changed()
-  }
-
-  function unequipAll() {
-    for (const p of petsState.pets) p.equipped = false
-    changed()
-  }
-
-  // Every craftCount unlocked pets of one kind + tier become one pet of the next tier.
-  // The new pet is equipped if any of its ingredients was.
-  function craftAll() {
-    let crafted = 0
-    for (let tier = 0; tier < PETS.tiers.length - 1; tier++) {
-      for (const kind of Object.keys(PETS.kinds)) {
-        const group = petsState.pets.filter((p) => p.kind === kind && p.tier === tier && !p.locked)
-        while (group.length >= PETS.craftCount) {
-          const used = group.splice(0, PETS.craftCount)
-          petsState.pets = petsState.pets.filter((p) => !used.includes(p))
-          petsState.pets.push({ ...newPet(kind, tier + 1), equipped: used.some((p) => p.equipped) })
-          crafted++
-        }
-      }
-    }
-    if (!crafted) return replay(craftBtn, 'shake')
-    changed()
-    sfx.craft()
-    burst(...centre(craftBtn), 'stars')
-  }
-
-  function deleteMarked() {
-    if (!marked.size) return replay(deleteBtn, 'shake')
-    sfx.trash()
-    petsState.pets = petsState.pets.filter((p) => !marked.has(p.uid))
-    marked.clear()
-    mode = 'equip'
-    changed()
-  }
-
-  // Every open starts in equip mode with the help card shut.
-  function reset() {
-    mode = 'equip'
-    marked.clear()
-    helpCard.hidden = true
-    render()
-  }
-
-  grid.addEventListener('click', (e) => {
-    const card = e.target.closest('.pt-pet')
-    if (card) tapPet(card)
-  })
-  q('.pt-help').addEventListener('click', () => {
-    helpCard.hidden = !helpCard.hidden
-  })
-  helpCard.addEventListener('click', () => (helpCard.hidden = true))
-  lockBtn.addEventListener('click', () => setMode('lock'))
-  trashBtn.addEventListener('click', () => setMode('delete'))
-  // More slots / storage are store purchases (not built yet).
-  for (const b of overlay.querySelectorAll('.pt-plus')) b.addEventListener('click', () => replay(b, 'bump'))
-
-  // Eggs (eggs.js) and gifts hand pets in here. Returns false when storage is full.
-  function addPet(kind, tier = 0) {
-    if (!PETS.kinds[kind] || petsState.pets.length >= petsState.storage) return false
-    petsState.pets.push(newPet(kind, tier))
-    if (win.isOpen()) render()
-    return true
-  }
-
-  // A save loaded from the server (net.js).
-  function hydrate(doc) {
-    applySave(doc)
-    marked.clear()
-    changed()
-  }
-
-  render()
-  return { open: win.open, close: win.close, toggle: win.toggle, isOpen: win.isOpen, addPet, boost: petBoost, snapshot, hydrate }
+  return voxelGeometry(shapes, u)
 }

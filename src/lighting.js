@@ -2,23 +2,26 @@ import {
   AdditiveBlending,
   BackSide,
   BufferGeometry,
+  CanvasTexture,
   Color,
   DirectionalLight,
   Float32BufferAttribute,
   Fog,
   HemisphereLight,
+  LinearFilter,
   Mesh,
   PMREMGenerator,
   PointLight,
   Points,
   PointsMaterial,
+  RepeatWrapping,
   Scene,
   ShaderMaterial,
   SphereGeometry,
   Vector3,
 } from 'three'
 import { FOG, LIGHT, TIME_OF_DAY } from './config.js'
-import { mulberry32 } from './textures.js'
+import { mulberry32, paintCloudCover } from './textures.js'
 
 // All scene lighting, blended between two moods (TIME_OF_DAY.day / .night):
 //  - a gradient sky shader with a sun/moon disc and glow
@@ -43,14 +46,22 @@ const skyFragment = /* glsl */ `
   uniform vec3 bottom;
   uniform vec3 sunDir;
   uniform vec3 sunColor;
+  uniform vec3 cloudColor;
+  uniform sampler2D clouds;
   varying vec3 vDir;
   void main() {
     float h = vDir.y;
-    vec3 col = mix(bottom, top, smoothstep(-0.05, 0.55, h));
+    vec3 col = mix(bottom, top, smoothstep(-0.05, 0.42, h));
     float d = max(dot(normalize(vDir), sunDir), 0.0);
     col += sunColor * (pow(d, 900.0) * 6.0 + pow(d, 24.0) * 0.25); // disc + halo
-    col = mix(col, bottom * 0.85, smoothstep(0.0, -0.25, h));      // darker below the horizon
+    // Painted clouds, wrapped around the sky and thinning out overhead.
+    float cover = texture2D(clouds, vec2(atan(vDir.z, vDir.x) / 6.28318 * 3.0, h * 1.1)).r;
+    float shade = texture2D(clouds, vec2(atan(vDir.z, vDir.x) / 6.28318 * 3.0, h * 1.1 - 0.03)).r;
+    cover *= smoothstep(-0.02, 0.1, h) * (1.0 - smoothstep(0.4, 0.75, h));
+    col = mix(col, cloudColor * (0.9 + 0.1 * shade), cover);
     gl_FragColor = vec4(col, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }`
 
 function sunDirection(elevationDeg, azimuthDeg, out) {
@@ -76,6 +87,14 @@ function makeStars(count = 1400) {
   return stars
 }
 
+function cloudTexture() {
+  const t = new CanvasTexture(paintCloudCover())
+  t.wrapS = t.wrapT = RepeatWrapping
+  t.generateMipmaps = false
+  t.minFilter = LinearFilter // mipmaps would draw a seam where the angle wraps
+  return t
+}
+
 export function createLighting(scene, renderer, preset) {
   // The two moods in use: TIME_OF_DAY, or a world's own sky (setMoods).
   let D = TIME_OF_DAY.day
@@ -91,6 +110,8 @@ export function createLighting(scene, renderer, preset) {
       bottom: { value: new Color(D.horizon) },
       sunDir: { value: new Vector3(0, 1, 0) },
       sunColor: { value: new Color(D.sunColor) },
+      cloudColor: { value: new Color(D.cloud) },
+      clouds: { value: cloudTexture() },
     },
     vertexShader: skyVertex,
     fragmentShader: skyFragment,
@@ -154,6 +175,7 @@ export function createLighting(scene, renderer, preset) {
     mix('zenith', skyMaterial.uniforms.top.value)
     mix('horizon', skyMaterial.uniforms.bottom.value)
     mix('sunColor', skyMaterial.uniforms.sunColor.value)
+    mix('cloud', skyMaterial.uniforms.cloudColor.value)
     mix('horizon', scene.fog.color)
     mix('sunColor', sun.color)
     mix('hemiSky', hemi.color)

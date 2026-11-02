@@ -52,7 +52,7 @@ class PlayerAnimator {
     this.root.position.y = 0
   }
 
-  // input: { grounded, speed, verticalVelocity, turn (-1..1) }
+  // input: { grounded, speed, verticalVelocity, turn (-1..1), slide, carry ('overhead' | 'hold' | null), lift (0..1 | null) }
   update(dt, input) {
     if (!(dt > 0)) return
     this.stateTime += dt
@@ -64,6 +64,11 @@ class PlayerAnimator {
   }
 
   resolveState(dt, input) {
+    if (input.slide) {
+      this.airTime = 0
+      this.setState('slide', ANIM.transitions.toSlide)
+      return
+    }
     if (!input.grounded) {
       // Ignore the few frames of a step down a ledge; only a real drop is airborne.
       this.airTime += dt
@@ -124,7 +129,16 @@ class PlayerAnimator {
         t.bobY = ANIM.landing.bobY * depth
         break
       }
+      case 'slide': {
+        t.applyDefinition(ANIM.slide)
+        break
+      }
     }
+    const carry = ANIM.carry[input.carry]
+    for (const bone in carry) t.set(bone, carry[bone].x ?? 0, carry[bone].y ?? 0, carry[bone].z ?? 0)
+    if (input.lift === null) return
+    const { bent, locked } = ANIM.lift
+    for (const bone in bent) t.set(bone, lerp(bent[bone].x, locked[bone].x, input.lift), 0, lerp(bent[bone].z ?? 0, locked[bone].z ?? 0, input.lift))
   }
 
   // One cycle at two depths (walk -> run), derived from actual speed.

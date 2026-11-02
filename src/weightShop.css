@@ -1,0 +1,187 @@
+/* The Treadmill Shop (weightShop.js), measured off the reference at 1914x990. */
+.ws-window {
+  --uiw-w: 1060;
+  --uiw-h: 640;
+}
+/* The HUD stays sharp over the blur, so the cash shows while shopping. */
+@media (pointer: fine) and (min-width: 1200px) {
+  .ws-window {
+    z-index: 13;
+  }
+}
+@media (max-width: 760px) {
+  .ws-window {
+    --uiw-w: 640;
+  }
+}
+.ws-window .uiw-dialog {
+  width: calc((var(--uiw-w) - 24) * var(--uiw-u));
+  height: calc(var(--uiw-h) * var(--uiw-u) - 15 * var(--uiw-u));
+}
+.ws-window .uiw-head {
+  height: calc(92 * var(--uiw-u));
+  padding-left: calc(28 * var(--uiw-u));
+  background:
+    linear-gradient(110deg, transparent 19%, rgba(255, 255, 255, 0.13) 19% 22.5%, transparent 22.5% 23.6%, rgba(255, 255, 255, 0.13) 23.6% 25.5%, transparent 25.5%),
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #62d23c;
+}
+.ws-window .uiw-head h2 {
+  font-size: max(20px, calc(56 * var(--uiw-u)));
+}
+.ws-window .uiw-body {
+  padding: calc(16 * var(--uiw-u)) calc(16 * var(--uiw-u)) 0;
+  background: rgba(34, 58, 30, 0.72);
+  overflow: hidden;
+}
+.ws-rail {
+  display: flex;
+  gap: calc(9 * var(--uiw-u));
+  height: 100%;
+  padding-bottom: calc(26 * var(--uiw-u));
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(10, 16, 12, 0.7) transparent;
+}
+.ws-rail::-webkit-scrollbar {
+  height: calc(9 * var(--uiw-u));
+}
+.ws-rail::-webkit-scrollbar-thumb {
+  background: rgba(10, 16, 12, 0.7);
+  border-radius: 99px;
+}
+.ws-card {
+  position: relative;
+  flex: none;
+  width: min(calc(382 * var(--uiw-u)), 74vw);
+  overflow: hidden;
+  background: var(--uiw-studs) 0 0 / calc(24 * var(--uiw-u)) calc(24 * var(--uiw-u)), rgba(52, 52, 52, 0.72);
+  border-radius: calc(4 * var(--uiw-u));
+}
+.ws-art {
+  position: absolute;
+  left: 50%;
+  top: 1%;
+  width: min(100%, calc(400 * var(--uiw-u)));
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.ws-art:not([src]) {
+  visibility: hidden;
+}
+.ws-name {
+  position: absolute;
+  left: calc(22 * var(--uiw-u));
+  right: calc(8 * var(--uiw-u));
+  top: calc(20 * var(--uiw-u));
+  font-size: max(14px, calc(34 * var(--uiw-u)));
+  white-space: nowrap;
+  --ow: 2.6;
+}
+.ws-rarity {
+  position: absolute;
+  left: calc(28 * var(--uiw-u));
+  top: calc(70 * var(--uiw-u));
+  font-size: max(11px, calc(24 * var(--uiw-u)));
+  --ow: 2;
+}
+.ws-gain {
+  position: absolute;
+  left: calc(22 * var(--uiw-u));
+  bottom: max(58px, calc(106 * var(--uiw-u)));
+  font-size: max(13px, calc(34 * var(--uiw-u)));
+  white-space: nowrap;
+  --ow: 2.6;
+}
+.ws-gain b {
+  font-weight: inherit;
+  color: #7ce8ff;
+}
+.ws-gain i {
+  font-style: normal;
+  color: #ffd52e;
+}
+.ws-row {
+  position: absolute;
+  left: calc(11 * var(--uiw-u));
+  right: calc(11 * var(--uiw-u));
+  bottom: calc(10 * var(--uiw-u));
+  display: flex;
+  justify-content: center;
+  gap: calc(11 * var(--uiw-u));
+  height: max(44px, calc(66 * var(--uiw-u)));
+}
+.ws-btn {
+  flex: 1;
+  max-width: calc(174 * var(--uiw-u));
+  min-width: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(6 * var(--uiw-u));
+  border: max(1px, calc(3 * var(--uiw-u))) solid #15151b;
+  border-radius: calc(9 * var(--uiw-u));
+  box-shadow: inset 0 calc(-6 * var(--uiw-u)) 0 rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font: inherit;
+  font-size: max(13px, calc(32 * var(--uiw-u)));
+  --ow: 2.4;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ws-btn:hover {
+  filter: brightness(1.08);
+}
+.ws-btn:active {
+  transform: scale(0.95);
+}
+.ws-btn svg {
+  flex: none;
+  width: calc(30 * var(--uiw-u));
+  min-width: 13px;
+}
+.ws-cash {
+  font-style: italic;
+  background: linear-gradient(180deg, #3cf064, #1fce4a);
+}
+.ws-coin {
+  background: linear-gradient(180deg, #c040e0, #a01cc8);
+}
+.ws-equip {
+  background: linear-gradient(180deg, #ffd467, #f0b43a);
+}
+.ws-equipped {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  gap: calc(4 * var(--uiw-u));
+  font-size: max(15px, calc(40 * var(--uiw-u)));
+  color: #4cf064;
+  --ow: 2.6;
+}
+.ws-equipped svg {
+  flex: none;
+  width: calc(36 * var(--uiw-u));
+  min-width: 15px;
+}
+.ws-short {
+  animation: ws-short 0.32s;
+}
+@keyframes ws-short {
+  20%,
+  60% {
+    transform: translateX(calc(-5 * var(--uiw-u)));
+    filter: saturate(0.2) brightness(0.8);
+  }
+  40%,
+  80% {
+    transform: translateX(calc(5 * var(--uiw-u)));
+    filter: saturate(0.2) brightness(0.8);
+  }
+}

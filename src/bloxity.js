@@ -2,12 +2,14 @@
 // here may throw when the SDK is missing: a blocked sdk.bloxity.io leaves the
 // game fully playable on the default avatar and keyboard controls.
 // Docs: https://docs.bloxity.io/#html5
-import { GAME_SLUG, GAME_TITLE, SETTINGS, DEV_MODE, coerceSetting } from './config.js'
+import { ADS, GAME_SLUG, GAME_TITLE, LEADERBOARDS, SETTINGS, DEV_MODE, coerceSetting } from './config.js'
 
 export function sdk() {
   if (DEV_MODE) return null
   return (typeof window !== 'undefined' && window.Legion && window.Legion.SDK) || null
 }
+
+export const sdkAvailable = () => !!sdk()
 
 // --- State --------------------------------------------------------------
 export const settings = {}
@@ -24,6 +26,7 @@ const proportionListeners = new Set()
 const authListeners = new Set()
 const settingListeners = new Set()
 const respawnListeners = new Set()
+const adBreakListeners = new Set()
 const unsubscribers = []
 
 function emit(listeners, ...args) {
@@ -62,6 +65,12 @@ export function onRespawnRequest(fn) {
   return () => respawnListeners.delete(fn)
 }
 
+// fn(true) when Boxity starts an ad break (pause and mute), fn(false) when it ends.
+export function onAdBreak(fn) {
+  adBreakListeners.add(fn)
+  return () => adBreakListeners.delete(fn)
+}
+
 // --- Auth ---------------------------------------------------------------
 // The SDK fires onUserChanged immediately with a null user, then again once the
 // portal handshake answers; a null user only settles auth after a grace period.
@@ -97,6 +106,26 @@ function onUser() {
   emit(authListeners, authState)
 }
 
+// Resolves once the sign-in state is known (a user, or the grace period passed for a guest), at
+// most `maxMs` later: the saves are loaded for that player.
+export function authSettled(maxMs = 6000) {
+  return new Promise((resolve) => {
+    if (authState.ready) return resolve()
+    let off = null
+    const timer = setTimeout(() => {
+      off?.()
+      resolve()
+    }, maxMs)
+    const fn = (s) => {
+      if (!s.ready) return
+      clearTimeout(timer)
+      queueMicrotask(() => off?.())
+      resolve()
+    }
+    off = subscribeAuth(fn)
+  })
+}
+
 // Name for the HUD badge.
 export function displayName() {
   const u = authState.user
@@ -120,6 +149,15 @@ export function getPfp() {
     }
     const url = new URL(raw, base)
     return /^https?:$/.test(url.protocol) ? url.href : ''
+  } catch {
+    return ''
+  }
+}
+
+// The JWT the game server verifies with Bloxity ('' without one).
+export function getToken() {
+  try {
+    return sdk()?.auth.getToken() || ''
   } catch {
     return ''
   }
@@ -183,6 +221,17 @@ export function init() {
       }),
     )
 
+    // Ad breaks can start at any moment: pause and mute until they end (required with the SDK).
+    if (SDK.ads) {
+      unsubscribers.push(SDK.ads.onBreakStart?.(() => emit(adBreakListeners, true)))
+      unsubscribers.push(SDK.ads.onBreakEnd?.(() => emit(adBreakListeners, false)))
+    }
+    try {
+      SDK.leaderboard?.define(LEADERBOARDS)
+    } catch (err) {
+      console.warn('[bloxity] leaderboard.define failed', err)
+    }
+
     SDK.game.loadingStep('Building the island')
   } catch (err) {
     console.warn('[bloxity] init failed; running without the SDK', err)
@@ -218,7 +267,7 @@ export function notifyFirstFrame() {
 export function teardown() {
   for (const off of unsubscribers.splice(0)) {
     try {
-      off()
+      off?.()
     } catch {
       // Tearing down anyway.
     }
@@ -377,6 +426,63 @@ export function requestFullscreen(on) {
     if (!SDK) return
     if (on) SDK.portal.requestFullscreen()
     else SDK.portal.exitFullscreen()
+  } catch {
+    // Ignore.
+  }
+}
+
+// --- Leaderboards -------------------------------------------------------------------------
+// Boxity shows the boards in its own panel. A score is sent when it is final; `latest` is only
+// ever the newest value, so calling this often (strength grows with every rep) is fine: one
+// submit per board every LEADERBOARD_GAP ms, always with the newest value.
+const LEADERBOARD_GAP = 15000
+const board = new Map() // id -> { sent, at, value, timer }
+export function submitScore(id, score) {
+  const sdk_ = sdk()
+  if (!sdk_?.leaderboard || !Number.isFinite(score)) return
+  const b = board.get(id) ?? { sent: -Infinity, at: 0, value: 0, timer: null }
+  board.set(id, b)
+  b.value = Math.floor(score)
+  const send = () => {
+    b.timer = null
+    if (b.value <= b.sent) return
+    b.sent = b.value
+    b.at = Date.now()
+    sdk_.leaderboard.submit(id, b.value).catch?.(() => {})
+  }
+  if (b.timer) return
+  const wait = LEADERBOARD_GAP - (Date.now() - b.at)
+  if (wait <= 0) send()
+  else b.timer = setTimeout(send, wait)
+}
+
+// --- Ads -------------------------------------------------------------------------------------
+export function adsAvailable() {
+  try {
+    return !!sdk()?.ads?.isAvailable?.()
+  } catch {
+    return false
+  }
+}
+
+// { status, rewardToken? }: pay only on status === 'completed', after the server verified the token.
+export async function showRewardedAd(placement) {
+  try {
+    return (await sdk().ads.showRewarded(placement)) ?? { status: 'error' }
+  } catch {
+    return { status: 'error' }
+  }
+}
+
+// Tells Boxity which screen is up, so it can put banners on the edges ('menu' | 'lobby' | 'results' | 'panel' | 'gameplay');
+// null hides them.
+let adScreen = null
+export function setAdScreen(type) {
+  if (!ADS.screens || type === adScreen) return
+  adScreen = type
+  try {
+    if (type) sdk()?.ads?.screen(type)
+    else sdk()?.ads?.hideScreen?.()
   } catch {
     // Ignore.
   }

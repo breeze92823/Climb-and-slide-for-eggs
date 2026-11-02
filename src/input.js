@@ -18,6 +18,7 @@ const NOTCH_PER_DELTA = [1 / 100, 1 / 3, 1]
 
 const held = new Set()
 const keyActions = new Map() // code -> fn, for one-shot keys (mode toggle, day/night...)
+const keyUpActions = new Map() // code -> fn, for key releases (hold-to-interact)
 let orbiting = false // right-drag fallback where pointer lock is refused
 let canvas = null
 const touch = { x: 0, z: 0, sprint: false }
@@ -33,6 +34,11 @@ export function requestLock() {
 // Registers a one-shot key (fires on keydown, never on auto-repeat).
 export function onKey(code, fn) {
   keyActions.set(code, fn)
+}
+
+// Registers a key-release handler (also fires when the window loses focus mid-hold).
+export function onKeyUp(code, fn) {
+  keyUpActions.set(code, fn)
 }
 
 function recomputeMove() {
@@ -79,6 +85,7 @@ export function install(showMenu, canvasEl) {
   })
   window.addEventListener('keyup', (e) => {
     held.delete(e.code)
+    keyUpActions.get(e.code)?.()
     recomputeMove()
   })
   window.addEventListener('pointerdown', (e) => {
@@ -112,6 +119,7 @@ export function install(showMenu, canvasEl) {
   )
   window.addEventListener('contextmenu', (e) => e.preventDefault())
   window.addEventListener('blur', () => {
+    for (const code of held) keyUpActions.get(code)?.()
     held.clear()
     orbiting = false
     inputState.jump = false

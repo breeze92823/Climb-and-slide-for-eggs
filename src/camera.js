@@ -28,6 +28,7 @@ let zoomTarget = CAMERA.distance
 let zoomEased = CAMERA.distance
 let rush = 0 // eased 0..1 sprint factor
 let clearance = 1 // 0..1 of the boom the walls allow, eased back out
+let aim = null // { yaw, pitch, time }: a glide the camera is making, cut short by looking around
 
 export const getYaw = () => state.yaw
 export const getPitch = () => state.pitch
@@ -35,6 +36,11 @@ export const getPitch = () => state.pitch
 // Snaps the orbit to sit directly behind the player.
 export function syncYawToPlayer() {
   state.yaw = player.facing + Math.PI
+}
+
+// Glides the orbit to a heading over a moment, keeping it the player's to turn.
+export function aimCamera(yaw, pitch, time = 0.6) {
+  aim = { yaw, pitch, time }
 }
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v)
@@ -56,6 +62,13 @@ onModeChanged((mode) => {
 })
 
 export function update(camera, dt) {
+  if (aim) {
+    const t = 1 - Math.exp(-7 * dt)
+    state.yaw += Math.atan2(Math.sin(aim.yaw - state.yaw), Math.cos(aim.yaw - state.yaw)) * t
+    state.pitch += (aim.pitch - state.pitch) * t
+    aim.time -= dt
+    if (aim.time <= 0 || inputState.look.dx || inputState.look.dy) aim = null
+  }
   state.yaw -= inputState.look.dx * CAMERA.lookSensitivity * sensitivity
   state.pitch += inputState.look.dy * CAMERA.lookSensitivity * sensitivity
   inputState.look.dx = 0

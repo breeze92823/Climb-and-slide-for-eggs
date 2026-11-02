@@ -732,3 +732,404 @@ export function paintChecker(a = '#ff5fa8', b = '#ff7fbc', size = 64) {
   ctx.fillRect(size / 2, size / 2, size / 2, size / 2)
   return c
 }
+
+// --- Lobby: building-brick surfaces -------------------------------------------------
+// Baseplate floor: a 2x2 light/dark check, each check holding 2x2 recessed rounded
+// studs (dark upper rim, pale lower rim). One tile = two checks.
+export function paintBaseplate({ light, dark, grid, rim, shine }, size = 512) {
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const check = size / 2
+  const stud = check / 2
+  for (let gy = 0; gy < 2; gy++) {
+    for (let gx = 0; gx < 2; gx++) {
+      const isLight = (gx + gy) % 2 === 0
+      ctx.fillStyle = isLight ? light : dark
+      ctx.fillRect(gx * check, gy * check, check, check)
+      for (let sy = 0; sy < 2; sy++) {
+        for (let sx = 0; sx < 2; sx++) {
+          const x = gx * check + sx * stud
+          const y = gy * check + sy * stud
+          if (isLight) {
+            // The light checks are also scored into smaller plates.
+            ctx.strokeStyle = grid
+            ctx.lineWidth = 2
+            ctx.strokeRect(x, y, stud, stud)
+          }
+          const inset = stud * 0.22
+          const w = stud - inset * 2
+          ctx.beginPath()
+          ctx.roundRect(x + inset, y + inset, w, w, stud * 0.1)
+          ctx.lineWidth = 5
+          ctx.strokeStyle = rim
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(x + inset + 3, y + inset + w + 3)
+          ctx.lineTo(x + inset + w + 3, y + inset + w + 3)
+          ctx.lineTo(x + inset + w + 3, y + inset + 3)
+          ctx.lineWidth = 2.5
+          ctx.strokeStyle = shine
+          ctx.stroke()
+        }
+      }
+    }
+  }
+  return c
+}
+
+// Wall and terrace bricks: a 2x2 two-tone check with 4x4 faint studs per check.
+export function paintBrickCheck(a, b, stud, size = 512) {
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const check = size / 2
+  for (let gy = 0; gy < 2; gy++) {
+    for (let gx = 0; gx < 2; gx++) {
+      ctx.fillStyle = (gx + gy) % 2 === 0 ? a : b
+      ctx.fillRect(gx * check, gy * check, check, check)
+      for (let sy = 0; sy < 4; sy++) {
+        for (let sx = 0; sx < 4; sx++) {
+          const x = gx * check + (sx + 0.5) * (check / 4)
+          const y = gy * check + (sy + 0.5) * (check / 4)
+          ctx.beginPath()
+          ctx.arc(x, y, check * 0.065, 0, Math.PI * 2)
+          ctx.lineWidth = 3
+          ctx.strokeStyle = stud
+          ctx.stroke()
+        }
+      }
+    }
+  }
+  return c
+}
+
+// Voxel foliage: a bright rim around hard-edged dark blocks (one box face = one tile).
+export function paintLeaves({ rim, base, dark, deep }, size = 64) {
+  const rand = mulberry32(2121)
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = base
+  ctx.fillRect(0, 0, size, size)
+  const px = size / 16
+  for (let i = 0; i < 90; i++) {
+    const w = 1 + Math.floor(rand() * 3)
+    const h = 1 + Math.floor(rand() * 2)
+    ctx.fillStyle = rand() < 0.65 ? dark : deep
+    ctx.fillRect(Math.floor(rand() * 16) * px, Math.floor(rand() * 16) * px, w * px, h * px)
+  }
+  ctx.strokeStyle = rim
+  ctx.lineWidth = px * 1.6
+  ctx.strokeRect(0, 0, size, size)
+  return c
+}
+
+// Slide water: bright cyan with pale crackled streaks, tiling along V (scroll offset.y).
+export function paintSlideWater({ base, deep, foam }, size = 256) {
+  const rand = mulberry32(919)
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const g = ctx.createLinearGradient(0, 0, size, 0)
+  g.addColorStop(0, deep)
+  g.addColorStop(0.5, base)
+  g.addColorStop(1, deep)
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, size, size)
+  ctx.lineCap = 'round'
+  for (let i = 0; i < 46; i++) {
+    let x = rand() * size
+    let y = rand() * size
+    ctx.strokeStyle = foam
+    ctx.globalAlpha = 0.35 + rand() * 0.6
+    ctx.lineWidth = 1 + rand() * 2.4
+    const segments = 3 + Math.floor(rand() * 4)
+    for (let s = 0; s < segments; s++) {
+      const nx = x + (rand() - 0.5) * 34
+      const ny = y + 14 + rand() * 34
+      for (const oy of [-size, 0, size]) {
+        ctx.beginPath()
+        ctx.moveTo(x, y + oy)
+        ctx.lineTo(nx, ny + oy)
+        ctx.stroke()
+      }
+      x = nx
+      y = ny
+    }
+  }
+  ctx.globalAlpha = 1
+  return c
+}
+
+// Hillside turf: soft streaks running up the slope (V), tinted by the mesh colours.
+export function paintTurf(size = 256) {
+  const rand = mulberry32(616)
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, size, size)
+  for (let i = 0; i < 700; i++) {
+    const x = rand() * size
+    const y = rand() * size
+    const len = 14 + rand() * 36
+    ctx.fillStyle = rand() < 0.5 ? `rgba(0,40,0,${0.05 + rand() * 0.09})` : `rgba(255,255,255,${0.05 + rand() * 0.14})`
+    ctx.fillRect(x, y, 1.5, len)
+    ctx.fillRect(x, y - size, 1.5, len)
+  }
+  return c
+}
+
+// Stone stairs: grey with small round studs (tints come from the vertex colours).
+export function paintStoneStuds(size = 128) {
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, size, size)
+  const n = 4
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const cx = (x + 0.5) * (size / n)
+      const cy = (y + 0.5) * (size / n)
+      ctx.beginPath()
+      ctx.arc(cx, cy, size / n / 3.4, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(0,0,0,0.13)'
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(cx - 1, cy - 1, size / n / 3.8, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255,255,255,0.65)'
+      ctx.fill()
+    }
+  }
+  return c
+}
+
+// Soft cloud cover for the sky shader (one tile wraps around the horizon).
+export function paintCloudCover(size = 512) {
+  const field = fbm(size, 4, 5, 2024)
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const img = ctx.createImageData(size, size)
+  for (let i = 0; i < field.length; i++) {
+    const t = Math.max(0, Math.min(1, (field[i] - 0.5) / 0.09))
+    const a = t * t * (3 - 2 * t) * 255
+    img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = a
+    img.data[i * 4 + 3] = 255
+  }
+  ctx.putImageData(img, 0, 0)
+  return c
+}
+
+// Outlined multi-colour text, each line a list of [text, colour] runs. `bg` paints a
+// rounded dark panel behind it. `draw` repaints once the web font loads.
+export function paintRich(lines, { outline = '#101010', font = '700 64px Fredoka, "Arial Black", sans-serif', pad = 18, bg = null, outlineWidth = 9 } = {}) {
+  const c = document.createElement('canvas')
+  const px = parseInt(font.match(/(\d+)px/)[1], 10)
+  const lineH = px * 1.22
+  const draw = () => {
+    const ctx = c.getContext('2d')
+    ctx.font = font
+    const widths = lines.map((runs) => runs.reduce((sum, r) => sum + ctx.measureText(r[0]).width, 0))
+    c.width = Math.ceil(Math.max(...widths) + pad * 2)
+    c.height = Math.ceil(lineH * lines.length + pad * 2)
+    if (bg) {
+      ctx.fillStyle = bg
+      ctx.beginPath()
+      ctx.roundRect(0, 0, c.width, c.height, 22)
+      ctx.fill()
+    }
+    ctx.font = font
+    ctx.textBaseline = 'middle'
+    ctx.lineJoin = 'round'
+    lines.forEach((runs, i) => {
+      let x = (c.width - widths[i]) / 2
+      const y = pad + lineH * (i + 0.5)
+      for (const [text, color] of runs) {
+        if (outline) {
+          ctx.lineWidth = outlineWidth
+          ctx.strokeStyle = outline
+          ctx.strokeText(text, x, y)
+        }
+        ctx.fillStyle = color
+        ctx.fillText(text, x, y)
+        x += ctx.measureText(text).width
+      }
+    })
+  }
+  draw()
+  return { canvas: c, draw }
+}
+
+// Flat sign face: `text` on a coloured board with a darker border.
+export function paintSign(text, { board, border, color, outline = null, font = '800 110px Fredoka, "Arial Black", sans-serif', w = 512, h = 192 }) {
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const draw = () => {
+    const ctx = c.getContext('2d')
+    ctx.fillStyle = board
+    ctx.fillRect(0, 0, w, h)
+    if (border) {
+      ctx.strokeStyle = border
+      ctx.lineWidth = 14
+      ctx.strokeRect(7, 7, w - 14, h - 14)
+    }
+    ctx.font = font
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    if (outline) {
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = 10
+      ctx.strokeStyle = outline
+      ctx.strokeText(text, w / 2, h / 2 + 4)
+    }
+    ctx.fillStyle = color
+    ctx.fillText(text, w / 2, h / 2 + 4)
+  }
+  draw()
+  return { canvas: c, draw }
+}
+
+// The purple paw coin: white rim, dotted ring and an orange paw print.
+export function paintPawCoin(size = 256) {
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const m = size / 2
+  const disc = (x, y, rx, ry, color, rot = 0) => {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  disc(m, m, m, m, '#ffffff')
+  disc(m, m, m * 0.92, m * 0.92, '#7a2fe0')
+  disc(m, m, m * 0.74, m * 0.74, '#5a18b8')
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2
+    disc(m + Math.cos(a) * m * 0.83, m + Math.sin(a) * m * 0.83, m * 0.03, m * 0.03, '#c8a0ff')
+  }
+  const toe = (x, y, rx, ry, rot) => {
+    disc(x, y, rx * 1.18, ry * 1.18, '#b14a12', rot)
+    disc(x, y, rx, ry, '#ff9a2e', rot)
+  }
+  toe(m, m * 1.2, m * 0.34, m * 0.28, 0)
+  toe(m - m * 0.42, m * 0.92, m * 0.12, m * 0.17, -0.5)
+  toe(m - m * 0.16, m * 0.68, m * 0.13, m * 0.19, -0.15)
+  toe(m + m * 0.16, m * 0.68, m * 0.13, m * 0.19, 0.15)
+  toe(m + m * 0.42, m * 0.92, m * 0.12, m * 0.17, 0.5)
+  return c
+}
+
+// Spiky aura sprite: soft blobs flung out from the centre (white, tinted by the sprite).
+export function paintAura(size = 256) {
+  const rand = mulberry32(333)
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const m = size / 2
+  ctx.globalCompositeOperation = 'lighter'
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + rand() * 0.3
+    const r = m * (0.42 + rand() * 0.3)
+    const x = m + Math.cos(a) * r
+    const y = m + Math.sin(a) * r
+    const rad = m * (0.2 + rand() * 0.16)
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad)
+    g.addColorStop(0, 'rgba(255,255,255,0.9)')
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(a)
+    ctx.scale(1.7, 0.75)
+    ctx.translate(-x, -y)
+    ctx.fillStyle = g
+    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2)
+    ctx.restore()
+  }
+  return c
+}
+
+// Round portrait for a base's floating sign: a blocky face on a coloured disc.
+export function paintPortrait({ ring, bg, skin, hair, shades = false }, size = 256) {
+  const c = canvas(size)
+  const ctx = c.getContext('2d')
+  const m = size / 2
+  ctx.fillStyle = ring
+  ctx.beginPath()
+  ctx.arc(m, m, m, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(m, m, m * 0.92, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, size, size)
+  ctx.fillStyle = '#1b2233' // torso
+  ctx.fillRect(m * 0.45, m * 1.5, m * 1.1, m)
+  ctx.fillStyle = skin
+  ctx.beginPath()
+  ctx.roundRect(m * 0.52, m * 0.62, m * 0.96, m * 0.96, m * 0.26)
+  ctx.fill()
+  ctx.fillStyle = hair
+  ctx.beginPath()
+  ctx.roundRect(m * 0.42, m * 0.42, m * 1.16, m * 0.5, m * 0.24)
+  ctx.fill()
+  ctx.fillRect(m * 0.42, m * 0.6, m * 0.2, m * 0.6)
+  ctx.fillRect(m * 1.38, m * 0.6, m * 0.2, m * 0.6)
+  ctx.fillStyle = '#16161c'
+  if (shades) {
+    ctx.fillRect(m * 0.6, m * 0.98, m * 0.36, m * 0.18)
+    ctx.fillRect(m * 1.04, m * 0.98, m * 0.36, m * 0.18)
+    ctx.fillRect(m * 0.6, m * 0.98, m * 0.8, m * 0.05)
+  } else {
+    ctx.beginPath()
+    ctx.ellipse(m * 0.8, m * 1.04, m * 0.06, m * 0.1, 0, 0, Math.PI * 2)
+    ctx.ellipse(m * 1.2, m * 1.04, m * 0.06, m * 0.1, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.lineWidth = m * 0.05
+  ctx.strokeStyle = '#16161c'
+  ctx.beginPath()
+  ctx.arc(m, m * 1.22, m * 0.2, 0.25, Math.PI - 0.25)
+  ctx.stroke()
+  ctx.restore()
+  return c
+}
+
+// The green button on the Upgrade Base sign: a little house, the price and the level.
+export function paintUpgradeButton(c, cost, level) {
+  const { width: w, height: h } = c
+  const ctx = c.getContext('2d')
+  const fill = ctx.createLinearGradient(0, 0, 0, h)
+  fill.addColorStop(0, '#a4ec3e')
+  fill.addColorStop(1, '#2fae2c')
+  ctx.fillStyle = fill
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = '#1b4f1c'
+  ctx.lineWidth = 10
+  ctx.strokeRect(5, 5, w - 10, h - 10)
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 8
+  ctx.strokeStyle = '#3a1608'
+  ctx.fillStyle = '#f08a3c'
+  ctx.strokeRect(50, 92, 76, 60)
+  ctx.fillRect(50, 92, 76, 60)
+  ctx.fillStyle = '#e8402e'
+  ctx.beginPath()
+  ctx.moveTo(30, 96)
+  ctx.lineTo(88, 42)
+  ctx.lineTo(146, 96)
+  ctx.closePath()
+  ctx.stroke()
+  ctx.fill()
+  ctx.fillStyle = '#7a3412'
+  ctx.fillRect(76, 112, 24, 40)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineWidth = 12
+  ctx.font = '700 76px Fredoka, sans-serif'
+  ctx.strokeStyle = '#123a14'
+  ctx.strokeText(cost, 266, 70)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(cost, 266, 70)
+  ctx.font = '700 48px Fredoka, sans-serif'
+  ctx.lineWidth = 10
+  ctx.strokeText(level, 266, 142)
+  ctx.fillStyle = '#d8ffb0'
+  ctx.fillText(level, 266, 142)
+}

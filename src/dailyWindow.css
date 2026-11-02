@@ -1,0 +1,174 @@
+/* The Daily Rewards window (dailyWindow.js), on the uiWindow.css shell, measured off the reference at 1919x990. */
+.dw-window {
+  --uiw-w: 1120;
+  --uiw-h: 640;
+}
+.dw-window .uiw-dialog {
+  width: calc(1090 * var(--uiw-u));
+  height: calc(615 * var(--uiw-u));
+}
+.dw-window .uiw-head {
+  height: calc(104 * var(--uiw-u));
+  padding-left: calc(46 * var(--uiw-u));
+  background:
+    linear-gradient(110deg, transparent 19%, rgba(255, 255, 255, 0.1) 19% 22.5%, transparent 22.5% 23.6%, rgba(255, 255, 255, 0.1) 23.6% 25.5%, transparent 25.5%),
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #2f2f31;
+  box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #151517;
+}
+.dw-window .uiw-head h2 {
+  font-size: max(22px, calc(66 * var(--uiw-u)));
+}
+.dw-timer {
+  font-size: max(12px, calc(28 * var(--uiw-u)));
+  color: #ffd24a;
+  --ow: 2;
+}
+.dw-window .uiw-body {
+  display: flex;
+  padding: calc(24 * var(--uiw-u)) calc(50 * var(--uiw-u)) calc(18 * var(--uiw-u));
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #3f6a2e;
+  border: calc(4 * var(--uiw-u)) solid #1f2f1a;
+  border-top: 0;
+  box-shadow: none;
+}
+
+/* Days 1-6 in three columns, day 7 tall on the right. */
+.dw-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 1.64fr;
+  grid-template-rows: repeat(2, 1fr);
+  gap: calc(30 * var(--uiw-u)) calc(22 * var(--uiw-u));
+}
+.dw-cell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background:
+    var(--uiw-studs) 0 0 / calc(24 * var(--uiw-u)) calc(24 * var(--uiw-u)),
+    #3d3d40;
+  border: calc(3 * var(--uiw-u)) solid #151517;
+  color: #fff;
+  font: inherit;
+  cursor: default;
+  touch-action: manipulation;
+}
+.dw-last {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+}
+.dw-cell.on {
+  cursor: pointer;
+  border-color: #ffd24a;
+  animation: dw-glow 1s ease-in-out infinite alternate;
+}
+.dw-cell.on:active {
+  transform: scale(0.97);
+}
+@keyframes dw-glow {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 210, 74, 0.2);
+  }
+  to {
+    box-shadow: 0 0 calc(16 * var(--uiw-u)) calc(4 * var(--uiw-u)) rgba(255, 210, 74, 0.9);
+  }
+}
+.dw-day {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  height: 18%;
+  min-height: 20px;
+  background: #58585c;
+  font-size: max(13px, calc(33 * var(--uiw-u)));
+  --ow: 2.2;
+}
+.dw-last .dw-day {
+  height: 13%;
+  font-size: max(16px, calc(44 * var(--uiw-u)));
+}
+.dw-art {
+  position: absolute;
+  inset: 22% 8% 6%;
+}
+.dw-last .dw-art {
+  inset: 15% 0 0;
+}
+.dw-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dw-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 60%;
+}
+.dw-last .dw-art img {
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+.dw-art img:not([src]) {
+  visibility: hidden;
+}
+.dw-op {
+  position: absolute;
+  z-index: 1;
+  left: calc(14 * var(--uiw-u));
+  top: 21%;
+  font-size: max(14px, calc(30 * var(--uiw-u)));
+  color: #ffc21f;
+  --ow: 2.2;
+}
+.dw-last .dw-op {
+  left: calc(12 * var(--uiw-u));
+  top: 14%;
+  font-size: max(24px, calc(62 * var(--uiw-u)));
+  --ow: 3.6;
+}
+.dw-name {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: calc(8 * var(--uiw-u));
+  text-align: center;
+  font-size: max(15px, calc(40 * var(--uiw-u)));
+  font-style: italic;
+  --ow: 2.6;
+}
+.dw-pet {
+  font-style: normal;
+  color: #f0d070;
+  opacity: 0.9;
+}
+.dw-last .dw-name {
+  bottom: calc(18 * var(--uiw-u));
+  font-size: max(22px, calc(70 * var(--uiw-u)));
+}
+.dw-check {
+  position: absolute;
+  z-index: 2;
+  inset: 22% 18% 12%;
+  display: none;
+  place-items: center;
+  background: rgba(20, 20, 24, 0.55);
+}
+.dw-cell.done .dw-check {
+  display: grid;
+}
+.dw-check svg {
+  width: 70%;
+  height: 70%;
+}
