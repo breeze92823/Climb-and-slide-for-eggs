@@ -15,6 +15,19 @@ export const NET = {
   bootWait: 25000, // ms the game waits for the server's save before playing on the local copy
   devBootWait: 3000, // the same with no SDK (a local server answers at once, or is not running)
   saveDelay: 3000, // ms between a change and the save being sent
+  poseEvery: 100, // ms between pose messages (the server drops anything faster than ~60)
+  poseIdleEvery: 1000, // ms between pose messages while standing still
+}
+
+// --- Other players (remotePlayers.js) -----------------------------------------------------
+export const REMOTE = {
+  interpDelay: 0.15, // s remote players are drawn behind the newest update, so motion is smooth
+  snapDistance: 6, // m: a bigger jump between updates (teleport, respawn) is not interpolated
+  reselectEvery: 0.5, // s between choosing which players are drawn (nearest first)
+  labelRange: 45, // m: name tags fade out beyond this
+  labelHeight: 0.55, // m above the head
+  bubbleHeight: 3.1, // m above the feet: over the name tag
+  bubbleSeconds: 4, // Legion.SDK.chat.bubbleSeconds
 }
 
 // --- Bloxity ads and leaderboards (bloxity.js) ---------------------------------------------
@@ -440,10 +453,10 @@ export const MATERIAL_PBR = {
 
 // --- Graphics presets, picked by the Bloxity graphics_quality setting ----------
 export const GRAPHICS_PRESETS = {
-  Low: { shadows: false, shadowMap: 512, antialias: false, dpr: 1, bloom: false, particles: 0.35 },
-  Medium: { shadows: true, shadowMap: 1024, antialias: false, dpr: 1.25, bloom: false, particles: 0.6 },
-  High: { shadows: true, shadowMap: 2048, antialias: true, dpr: 2, bloom: true, particles: 1 },
-  Ultra: { shadows: true, shadowMap: 4096, antialias: true, dpr: 2, bloom: true, particles: 1 },
+  Low: { shadows: false, shadowMap: 512, antialias: false, dpr: 1, bloom: false, particles: 0.35, remotes: 4 },
+  Medium: { shadows: true, shadowMap: 1024, antialias: false, dpr: 1.25, bloom: false, particles: 0.6, remotes: 8 },
+  High: { shadows: true, shadowMap: 2048, antialias: true, dpr: 2, bloom: true, particles: 1, remotes: 16 },
+  Ultra: { shadows: true, shadowMap: 4096, antialias: true, dpr: 2, bloom: true, particles: 1, remotes: 24 },
 }
 
 // Bloom (postfx.js): only HDR-bright pixels (above threshold, linear, before
@@ -459,14 +472,14 @@ export const NEON = { k: 3.5, plainMax: 1.2 }
 // is a full-screen multi-pass blur, so it stays off on phones).
 export const COARSE_POINTER = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 export const DEFAULT_GRAPHICS = COARSE_POINTER ? 'Medium' : 'High'
-export const MOBILE_GRAPHICS_CAP = { dpr: 1.5, shadowMap: 1024, particles: 0.6 }
+export const MOBILE_GRAPHICS_CAP = { dpr: 1.5, shadowMap: 1024, particles: 0.6, remotes: 6 } // remotes = other players drawn at once
 
 // The preset to render with on this device.
 export function graphicsPreset(name) {
   const p = GRAPHICS_PRESETS[name] ?? GRAPHICS_PRESETS[DEFAULT_GRAPHICS]
   if (!COARSE_POINTER) return p
   const cap = MOBILE_GRAPHICS_CAP
-  return { ...p, dpr: Math.min(p.dpr, cap.dpr), shadowMap: Math.min(p.shadowMap, cap.shadowMap), bloom: false, particles: Math.min(p.particles, cap.particles) }
+  return { ...p, dpr: Math.min(p.dpr, cap.dpr), shadowMap: Math.min(p.shadowMap, cap.shadowMap), bloom: false, particles: Math.min(p.particles, cap.particles), remotes: Math.min(p.remotes, cap.remotes) }
 }
 
 // --- Touch controls (touch.js) --------------------------------------------------

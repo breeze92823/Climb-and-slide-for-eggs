@@ -27,6 +27,7 @@ const authListeners = new Set()
 const settingListeners = new Set()
 const respawnListeners = new Set()
 const adBreakListeners = new Set()
+const chatListeners = new Set()
 const unsubscribers = []
 
 function emit(listeners, ...args) {
@@ -69,6 +70,13 @@ export function onRespawnRequest(fn) {
 export function onAdBreak(fn) {
   adBreakListeners.add(fn)
   return () => adBreakListeners.delete(fn)
+}
+
+// fn({ userId, username, text, isLocalPlayer }) for every chat message in the player's room; text
+// is already filtered and trimmed for a bubble. Never fires without the SDK.
+export function onChat(fn) {
+  chatListeners.add(fn)
+  return () => chatListeners.delete(fn)
 }
 
 // --- Auth ---------------------------------------------------------------
@@ -221,6 +229,26 @@ export function init() {
       }),
     )
 
+    // Chat bubbles: subscribing is the opt-in (the portal forwards chat only to games that did).
+    try {
+      if (typeof SDK.chat?.onMessage === 'function') {
+        unsubscribers.push(
+          SDK.chat.onMessage((m) => {
+            if (!m || m.isGif) return
+            let text = ''
+            try {
+              text = String(SDK.chat.bubbleText(m) ?? '')
+            } catch {
+              text = typeof m.text === 'string' ? m.text.slice(0, 80) : ''
+            }
+            if (text) emit(chatListeners, { userId: m.userId, username: m.username, text, isLocalPlayer: !!m.isLocalPlayer })
+          }),
+        )
+      }
+    } catch (err) {
+      console.warn('[bloxity] chat.onMessage failed', err)
+    }
+
     // Ad breaks can start at any moment: pause and mute until they end (required with the SDK).
     if (SDK.ads) {
       unsubscribers.push(SDK.ads.onBreakStart?.(() => emit(adBreakListeners, true)))
@@ -284,6 +312,29 @@ export function getEquippedAvatar() {
   if (latestEquipped) return latestEquipped
   try {
     return sdk()?.avatar.getEquipped() ?? null
+  } catch {
+    return null
+  }
+}
+
+// The avatar look other players draw us with: JSON text { e: equipped, p: proportions, s: skin
+// texture URL }, '' for a guest or without the SDK (they draw the base rig). The server relays it
+// untouched, capped in length (backend AVATAR_MAX_LEN), so the skin URL is dropped if it is too long.
+const AVATAR_LOOK_MAX = 4096
+export function avatarLook() {
+  if (!authState.user) return ''
+  const e = getEquippedAvatar()
+  if (!e) return ''
+  const p = getProportions()
+  let look = JSON.stringify({ e, p, s: getSkinTextureUrl() })
+  if (look.length > AVATAR_LOOK_MAX) look = JSON.stringify({ e, p })
+  return look.length <= AVATAR_LOOK_MAX ? look : ''
+}
+
+// Puts a camera-facing chat bubble over `target` for the SDK's bubble time. No-op without the SDK.
+export function attachBubble(THREE, target, text, height) {
+  try {
+    return sdk()?.chat?.attachBubble?.(THREE, target, text, { seconds: 4, height }) ?? null
   } catch {
     return null
   }

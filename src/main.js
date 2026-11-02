@@ -31,6 +31,7 @@ import { createSellWindow } from './sellWindow.js'
 import { createEggsWindow } from './eggsWindow.js'
 import * as petIndex from './petIndex.js'
 import * as net from './net.js'
+import { createRemotePlayers } from './remotePlayers.js'
 import * as saves from './saves.js'
 
 // Boot order: Bloxity SDK -> renderer -> Rapier (async wasm) -> ground + sky + lighting,
@@ -207,6 +208,9 @@ bloxity.onReservedAreas((areas) => {
   lobbyHud.fitNav(areas)
 })
 
+// --- Other players ---------------------------------------------------------
+const remotes = createRemotePlayers({ scene, camera, localGroup: playerGroup, localPosition: player.renderPosition, maxDrawn: preset.remotes })
+
 // --- Loop -------------------------------------------------------------------
 const clock = new Clock()
 let shownLoading = true
@@ -241,6 +245,7 @@ renderer.setAnimationLoop(() => {
   stalls.update()
   lobbyHud.update(dt)
   farm.update(dt, elapsed)
+  remotes.update(dt)
   rebirth.update()
   playtime.update()
   daily.update()
@@ -269,5 +274,5 @@ if (import.meta.env.DEV) {
     resetPlayer({ x, y, z }, facing)
     syncYawToPlayer()
   }
-  window.__game = { player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, index: petIndex, indexWindow, run, farm, training, shop, trails, rebirth, playtime, hud: lobbyHud }
+  window.__game = { net, remotes, player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, index: petIndex, indexWindow, run, farm, training, shop, trails, rebirth, playtime, hud: lobbyHud }
 }

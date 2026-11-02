@@ -2,6 +2,7 @@ import { inputState } from './input.js'
 import { getYaw, syncYawToPlayer } from './camera.js'
 import { isFirstPerson } from './modes.js'
 import { RAPIER, alpha, onTick, world } from './physics.js'
+import * as net from './net.js'
 import { PHYSICS, PLAYER_DIMS, SPAWN, SPAWN_FACING } from './config.js'
 
 // The local player singleton, mutated in place. A kinematic Rapier capsule
@@ -172,4 +173,5 @@ export function interpolate() {
   r.x = prev.x + (p.x - prev.x) * alpha
   r.y = prev.y + (p.y - prev.y) * alpha
   r.z = prev.z + (p.z - prev.z) * alpha
+  net.sendPose(r.x, r.y, r.z, player.facing) // presence, throttled inside
 }

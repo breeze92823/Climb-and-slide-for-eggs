@@ -29,11 +29,15 @@ async function endpoint(userId) {
   return null
 }
 
+// Without the SDK a local server trusts this id. A second tab needs its own (the server evicts a
+// second session on one account): open it with `?dev=2`.
+const devPlayer = () => `dev-player${new URLSearchParams(location.search).get('dev') ?? ''}`
+
 function joinOptions() {
   const u = bloxity.authState.user ?? bloxity.authState.guest
   return {
     token: bloxity.getToken(),
-    userId: u?._id ?? (bloxity.sdkAvailable() ? '' : 'dev-player'), // trusted only by a local server
+    userId: u?._id ?? (bloxity.sdkAvailable() ? '' : devPlayer()), // trusted only by a local server
     username: bloxity.displayName(),
     pfp: bloxity.getPfp(),
   }
@@ -111,6 +115,7 @@ export async function start() {
         return
       } catch (err) {
         if (err?.message === 'no server') return
+        console.warn('[net] connect failed', err)
         await new Promise((r) => setTimeout(r, Math.min(4000, 500 * 2 ** i)))
       }
     }
@@ -191,3 +196,50 @@ export function verifyAd(placement, rewardToken) {
 }
 
 export const connected = () => !!state.room
+
+// --- Presence -------------------------------------------------------------------------------------
+// The room's roster is the other players' pose + avatar look (state.players, keyed by session id).
+// Nothing here is persisted; the server only bounds what we send (backend src/presence.ts).
+// { self: sessionId, players: MapSchema } while connected, else null.
+export const roster = () => (state.room?.state?.players ? { self: state.room.sessionId, players: state.room.state.players } : null)
+
+const sentPose = { x: 0, y: 0, z: 0, yaw: 0, at: 0, moving: false }
+// Called every frame with the local player's feet position and facing; sends at most every
+// NET.poseEvery ms (NET.poseIdleEvery while standing still). Speed is measured between sends.
+export function sendPose(x, y, z, yaw) {
+  const room = state.room
+  if (!room) return
+  const now = performance.now()
+  const dt = now - sentPose.at
+  const moved = Math.hypot(x - sentPose.x, y - sentPose.y, z - sentPose.z)
+  const turned = Math.abs(Math.atan2(Math.sin(yaw - sentPose.yaw), Math.cos(yaw - sentPose.yaw)))
+  const changed = moved > 0.02 || turned > 0.02
+  if (dt < (changed || sentPose.moving ? NET.poseEvery : NET.poseIdleEvery)) return
+  const speed = sentPose.at ? Math.hypot(x - sentPose.x, z - sentPose.z) / (dt / 1000) : 0
+  try {
+    room.send('pose', { x, y, z, yaw, speed })
+  } catch {
+    return // the socket was closing
+  }
+  Object.assign(sentPose, { x, y, z, yaw, at: now, moving: changed })
+}
+
+let sentAvatar = null
+let avatarTimer = null
+function sendAvatar() {
+  clearTimeout(avatarTimer)
+  avatarTimer = null
+  const look = bloxity.avatarLook()
+  if (!state.room || look === sentAvatar) return
+  try {
+    state.room.send('setAvatar', { look })
+    sentAvatar = look
+  } catch {
+    // Closing: the next connect sends it.
+  }
+}
+// The customizer fires several times per edit, and sign-in changes the look too: send once it settles.
+const avatarSoon = () => (avatarTimer ||= setTimeout(sendAvatar, 400))
+bloxity.onAvatarChanged(avatarSoon)
+bloxity.onProportionsChanged(avatarSoon)
+bloxity.subscribeAuth(avatarSoon)
