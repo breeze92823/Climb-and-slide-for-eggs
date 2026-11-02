@@ -399,7 +399,7 @@ export const GOALS = {
 // --- Lobby HUD (lobbyHud.js) -----------------------------------------------------
 export const LOBBY_HUD = {
   holdTime: 2, // seconds E (or a press on the prompt) is held for Shop, Sell and Upgrade
-  incomeEvery: 1, // s between payouts
+  incomeEvery: 3, // s between payouts
   saveKey: 'climb-slide-cash', // saves.js section (browser + backend)
   saveEvery: 5, // s
   devCash: 0, // `npm run dev` with no save starts here
