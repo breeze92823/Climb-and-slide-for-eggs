@@ -227,7 +227,13 @@ export function sendBase(base) {
   }
 }
 
-const sentPose = { x: 0, y: 0, z: 0, yaw: 0, at: 0, moving: false }
+// Animation flags the others replay: 1 sliding, 2 carrying overhead, 4 carrying in hand, 8 lifting.
+let anim = 0
+export const setAnim = (flags) => {
+  anim = flags
+}
+
+const sentPose = { x: 0, y: 0, z: 0, yaw: 0, at: 0, moving: false, anim: 0 }
 // Called every frame with the local player's feet position and facing; sends at most every
 // NET.poseEvery ms (NET.poseIdleEvery while standing still). Speed is measured between sends.
 export function sendPose(x, y, z, yaw) {
@@ -237,15 +243,15 @@ export function sendPose(x, y, z, yaw) {
   const dt = now - sentPose.at
   const moved = Math.hypot(x - sentPose.x, y - sentPose.y, z - sentPose.z)
   const turned = Math.abs(Math.atan2(Math.sin(yaw - sentPose.yaw), Math.cos(yaw - sentPose.yaw)))
-  const changed = moved > 0.02 || turned > 0.02
+  const changed = moved > 0.02 || turned > 0.02 || anim !== sentPose.anim
   if (dt < (changed || sentPose.moving ? NET.poseEvery : NET.poseIdleEvery)) return
   const speed = sentPose.at ? Math.hypot(x - sentPose.x, z - sentPose.z) / (dt / 1000) : 0
   try {
-    room.send('pose', { x, y, z, yaw, speed })
+    room.send('pose', { x, y, z, yaw, speed, anim })
   } catch {
     return // the socket was closing
   }
-  Object.assign(sentPose, { x, y, z, yaw, at: now, moving: changed })
+  Object.assign(sentPose, { x, y, z, yaw, anim, at: now, moving: changed })
 }
 
 let sentAvatar = null

@@ -321,17 +321,16 @@ export function getEquippedAvatar() {
   }
 }
 
-// The avatar look other players draw us with: JSON text { e: equipped, p: proportions, s: skin
-// texture URL }, '' for a guest or without the SDK (they draw the base rig). The server relays it
-// untouched, capped in length (backend AVATAR_MAX_LEN), so the skin URL is dropped if it is too long.
+// The avatar look other players draw us with: JSON text { e: equipped, p: proportions }, ''
+// for a guest or without the SDK (they draw the base rig). IDs only, never URLs: each client builds the
+// skin/item URLs itself from its own told environment. The server relays it untouched (AVATAR_MAX_LEN).
 const AVATAR_LOOK_MAX = 4096
 export function avatarLook() {
   if (!authState.user) return ''
   const e = getEquippedAvatar()
   if (!e) return ''
   const p = getProportions()
-  let look = JSON.stringify({ e, p, s: getSkinTextureUrl() })
-  if (look.length > AVATAR_LOOK_MAX) look = JSON.stringify({ e, p })
+  const look = JSON.stringify({ e, p })
   return look.length <= AVATAR_LOOK_MAX ? look : ''
 }
 

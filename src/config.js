@@ -219,7 +219,10 @@ export const zoneAt = (m) => ZONES.reduce((at, zone) => (m >= zone.m ? zone : at
 export const TRAIN = {
   reps: 3, // a second, each paying the equipped weight's strength: the reference goes from 100 to 312 in 35 s on +2
   boost: 2, // reps are multiplied by this for `boostTime` s after a press of the hand button
-  boostTime: 1, // s
+  boostTime: 5, // s
+  handEvery: 6, // s into a set before the hand first appears
+  handStay: 4, // s the hand waits to be pressed before it leaves
+  handCooldown: 9, // s from a boost's end (or a missed hand) to the next appearance
   snap: 10, // 1/s the player slides to the pad's centre
   walkOff: 0.2, // stick travel that counts as walking away
   facing: Math.PI - 0.3, // yaw lifting, a little off the camera as in the reference

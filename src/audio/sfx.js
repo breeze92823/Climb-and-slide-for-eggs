@@ -548,6 +548,14 @@ export function trainBoost() {
   modal({ t, f: note(pick([12, 14, 16])), modes: KALIMBA, gain: 0.18, decay: 0.4 })
 }
 
+// The x2 hand appearing: two soft rising notes, an invitation rather than an alert.
+export function trainHand() {
+  if (!limit('hand', 300) || !voice(0.4, 1)) return
+  const t = now()
+  modal({ t, f: note(7), modes: KALIMBA, gain: 0.14, decay: 0.35 })
+  modal({ t: t + 0.09, f: note(14), modes: KALIMBA, gain: 0.12, decay: 0.45 })
+}
+
 // The base upgraded: a heavy latch, then the plot's chord opening.
 export function upgrade() {
   if (!voice(1.3, 3)) return

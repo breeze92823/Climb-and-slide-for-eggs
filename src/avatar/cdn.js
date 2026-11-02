@@ -4,7 +4,17 @@
 // it would load. Pure string-building only — avatar/loader.js is the
 // sole consumer. Ported from Clean Leaves for Loot.
 
-const AVATAR_CDN = 'https://static.bloxity.io/avatars'
+// Hosts come from the SDK's told environment (never guessed); prod is only the fallback.
+function env() {
+  try {
+    return globalThis.Legion?.SDK?.environment?.() ?? {}
+  } catch {
+    return {}
+  }
+}
+const staticUrl = () => env().staticUrl || 'https://static.bloxity.io'
+const apiUrl = () => env().apiUrl || 'https://api.bloxity.io'
+const avatarCdn = () => `${staticUrl()}/avatars`
 
 // The SDK's own "nothing equipped" sentinels — '' / 'undefined' (as literal
 // strings) / null for hats/back items — collapsed to one check so callers
@@ -38,18 +48,18 @@ export const AVATAR_SLOTS = [
 
 export function partUrl(slot, id) {
   const suffix = slot.side ? `_${slot.side}` : ''
-  return `${AVATAR_CDN}/parts/${slot.type}/${id}${suffix}.glb`
+  return `${avatarCdn()}/parts/${slot.type}/${id}${suffix}.glb`
 }
 
 export function itemUrls(slot, id) {
   return {
-    mesh: `${AVATAR_CDN}/items/${slot.type}/${id}.obj`,
-    texture: `${AVATAR_CDN}/textures/${slot.type}/${id}.png`,
+    mesh: `${avatarCdn()}/items/${slot.type}/${id}.obj`,
+    texture: `${avatarCdn()}/textures/${slot.type}/${id}.png`,
   }
 }
 
 export function skinUrl(id) {
-  return `${AVATAR_CDN}/skins/${id}.png`
+  return `${avatarCdn()}/skins/${id}.png`
 }
 
 // The skin with the worn face, shirt and pants drawn on, built by hand for
@@ -63,7 +73,7 @@ export function composedSkinUrl(equipped) {
   if (isEquipped(pantsId)) name += `_pn${pantsId}`
   if (isEquipped(shirtId)) name += `_sh${shirtId}`
   if (isEquipped(faceId)) name += `_fc${faceId}`
-  return `https://api.bloxity.io/v1/avatar/skin-texture/${name}.png`
+  return `${apiUrl()}/v1/avatar/skin-texture/${name}.png`
 }
 
 // --- Catalogue ---------------------------------------------------------
@@ -71,7 +81,6 @@ export function composedSkinUrl(equipped) {
 // (`assetPaths` per item) rather than a URL pattern, so an item stored
 // somewhere unexpected still loads. Cached by id; a failed lookup resolves to
 // null so callers fall back to the pattern URLs above.
-const AVATAR_API = 'https://api.bloxity.io'
 const catalogue = new Map()
 
 export function describeItem(id) {
@@ -79,7 +88,7 @@ export function describeItem(id) {
   const key = String(id)
   let request = catalogue.get(key)
   if (!request) {
-    request = fetch(`${AVATAR_API}/v1/avatar/items/${encodeURIComponent(key)}`)
+    request = fetch(`${apiUrl()}/v1/avatar/items/${encodeURIComponent(key)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -93,21 +102,21 @@ export function describeItem(id) {
 // `assetPaths` entries are host-relative ('/avatars/...') or absolute.
 export function assetUrl(path) {
   if (!path) return null
-  return path.startsWith('http') ? path : `https://static.bloxity.io${path}`
+  return path.startsWith('http') ? path : `${staticUrl()}${path}`
 }
 
 export function hatObjUrl(id) {
-  return isEquipped(id) ? `${AVATAR_CDN}/items/hats/${id}.obj` : null
+  return isEquipped(id) ? `${avatarCdn()}/items/hats/${id}.obj` : null
 }
 
 export function hatTextureUrl(id) {
-  return isEquipped(id) ? `${AVATAR_CDN}/textures/hats/${id}.png` : null
+  return isEquipped(id) ? `${avatarCdn()}/textures/hats/${id}.png` : null
 }
 
 export function backObjUrl(id) {
-  return isEquipped(id) ? `${AVATAR_CDN}/items/back/${id}.obj` : null
+  return isEquipped(id) ? `${avatarCdn()}/items/back/${id}.obj` : null
 }
 
 export function backTextureUrl(id) {
-  return isEquipped(id) ? `${AVATAR_CDN}/textures/back/${id}.png` : null
+  return isEquipped(id) ? `${avatarCdn()}/textures/back/${id}.png` : null
 }

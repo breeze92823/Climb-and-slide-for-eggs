@@ -27,6 +27,8 @@ export function createTraining({ group, world, run, shop }) {
   let armed = true // off from starting until the player has left the pad
   let reps = 0 // goes up all the time, a whole number is a rep
   let boost = 0 // s left of the hand button's x2
+  let wait = 0 // s until the hand appears
+  let offer = 0 // s the shown hand has left; 0 = not shown
   let holding = false // still holding the key that walked them on
   let set = 0 // reps since they started, for the note each one plays
 
@@ -35,7 +37,8 @@ export function createTraining({ group, world, run, shop }) {
   function start() {
     training = true
     armed = false
-    reps = boost = set = 0
+    reps = boost = set = offer = 0
+    wait = TRAIN.handEvery
     holding = true
     sfx.trainStart()
     player.drive = tick
@@ -53,6 +56,8 @@ export function createTraining({ group, world, run, shop }) {
 
   function end() {
     training = false
+    offer = 0
+    hud.showHand(false)
     run.setTraining(false)
     bar.visible = false
     hud.setTraining(false)
@@ -66,8 +71,10 @@ export function createTraining({ group, world, run, shop }) {
   }
 
   function press() {
-    if (!training) return
+    if (!training || offer <= 0) return // only while the hand is showing
+    offer = 0
     boost = TRAIN.boostTime
+    hud.showHand(false)
     hud.boosted()
     sfx.trainBoost()
   }
@@ -84,7 +91,22 @@ export function createTraining({ group, world, run, shop }) {
     const t = Math.min(1, TRAIN.snap * dt)
     p.x += (pad.x - p.x) * t
     p.z += (pad.z - p.z) * t
-    boost = Math.max(0, boost - dt)
+    if (boost > 0) {
+      boost = Math.max(0, boost - dt)
+      if (boost === 0) wait = TRAIN.handCooldown
+    } else if (offer > 0) {
+      offer = Math.max(0, offer - dt)
+      hud.handLeft(offer / TRAIN.handStay)
+      if (offer === 0) {
+        hud.showHand(false) // missed: it goes away and comes back later
+        wait = TRAIN.handCooldown
+      }
+    } else if ((wait -= dt) <= 0) {
+      offer = TRAIN.handStay
+      hud.showHand(true)
+      hud.handLeft(1)
+      sfx.trainHand()
+    }
     const before = Math.floor(reps)
     reps += TRAIN.reps * (boost > 0 ? TRAIN.boost : 1) * dt
     if (Math.floor(reps) > before) {

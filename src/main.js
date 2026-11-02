@@ -255,14 +255,17 @@ renderer.setAnimationLoop(() => {
   const p = player.renderPosition
   playerGroup.position.set(p.x, p.y, p.z)
   playerGroup.rotation.set(player.tilt, player.facing, 0)
+  const carry = run.carry()
+  const lift = training.lift()
+  net.setAnim((run.sliding() ? 1 : 0) | (carry === 'overhead' ? 2 : 0) | (carry === 'hold' ? 4 : 0) | (lift !== null ? 8 : 0))
   animator?.update(dt, {
     grounded: player.grounded,
     speed: Math.hypot(player.velocity.x, player.velocity.z),
     verticalVelocity: player.velocity.y,
     turn: 0,
     slide: run.sliding(),
-    carry: run.carry(),
-    lift: training.lift(),
+    carry,
+    lift,
   })
 
   heard.x = player.position.x

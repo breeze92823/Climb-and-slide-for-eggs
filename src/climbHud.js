@@ -176,6 +176,13 @@ export function createClimbHud({ onAuto, onSlot }) {
       root.classList.toggle('training', on)
       document.body.classList.toggle('training', on)
     },
+    showHand(on) {
+      x2.classList.toggle('show', on)
+    },
+    // Share of the hand's time left, for its ring.
+    handLeft(share) {
+      x2.style.setProperty('--left', share.toFixed(3))
+    },
     boosted() {
       replay(x2, 'press')
     },

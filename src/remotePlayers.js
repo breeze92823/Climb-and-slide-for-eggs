@@ -4,7 +4,7 @@
 // nearest `preset.remotes` players are drawn at once (graphics preset, lower on phones).
 import * as THREE from 'three'
 import { CanvasTexture, Group, Sprite, SpriteMaterial, SRGBColorSpace } from 'three'
-import { PLAYER_DIMS, REMOTE } from './config.js'
+import { PLAYER_DIMS, REMOTE, TRAIN } from './config.js'
 import * as bloxity from './bloxity.js'
 import * as net from './net.js'
 import { buildDefaultCharacter, loadBaseCharacter } from './avatar/character.js'
@@ -14,16 +14,6 @@ import { disposeAnimator, makeAnimator } from './avatar/animator.js'
 const MAX_SNAPSHOTS = 8
 const lerp = (a, b, t) => a + (b - a) * t
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a))
-
-// A remote's skin texture URL is attacker-supplied: only Bloxity's own hosts may be fetched.
-const trustedUrl = (u) => {
-  try {
-    const { protocol, hostname } = new URL(u)
-    return protocol === 'https:' && (hostname === 'bloxity.io' || hostname.endsWith('.bloxity.io'))
-  } catch {
-    return false
-  }
-}
 
 function nameTexture(name) {
   const canvas = document.createElement('canvas')
@@ -71,7 +61,7 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
     try {
       const group = await loadBaseCharacter()
       if (mine !== e.generation || e.dead) return
-      if (equipped) await attachEquippedAccessories(group, equipped, { skinTextureUrl: trustedUrl(parsed.s) ? parsed.s : null })
+      if (equipped) await attachEquippedAccessories(group, equipped)
       if (mine !== e.generation || e.dead) return
       applyProportions(group, parsed && typeof parsed.p === 'object' ? parsed.p : null)
       setCharacter(e, group)
@@ -196,6 +186,7 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
       }
       const s = sample(e, rt)
       const state = roster.players.get(id)
+      const flags = state.anim || 0
       e.root.visible = true
       e.root.position.set(s.x, s.y, s.z)
       e.root.rotation.y = s.yaw
@@ -208,9 +199,9 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
         speed: s.moving > 0.2 ? state.speed || s.moving : 0,
         verticalVelocity: s.vy,
         turn: 0,
-        slide: false,
-        carry: null,
-        lift: null,
+        slide: !!(flags & 1),
+        carry: flags & 2 ? 'overhead' : flags & 4 ? 'hold' : null,
+        lift: flags & 8 ? (1 - Math.cos(t * TRAIN.reps * Math.PI)) / 2 : null,
       })
     }
   }
