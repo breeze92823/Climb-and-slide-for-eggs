@@ -71,6 +71,9 @@ async function connect() {
   state.room = room
   sentBase = null
   if (lastBase) sendBase(JSON.parse(lastBase))
+  // The new room has not seen our look: auth/avatar events usually fire before it exists.
+  sentAvatar = null
+  sendAvatar()
   // Friends' invites and the Open Rooms list join through this id (the relay pins the pod).
   bloxity.updateRoom(room.roomId)
 }
