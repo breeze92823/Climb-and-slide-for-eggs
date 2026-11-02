@@ -1,5 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three'
-import { CLIMB, climbY, LOBBY } from './config.js'
+import { CLIMB, climbY, LOBBY, RUN, ZONES, zoneAt } from './config.js'
 import { solidBox } from './propkit.js'
 import { RAPIER, addFixed } from './physics.js'
 import { paintBaseplate, paintBrickCheck, toTexture } from './textures.js'
@@ -53,7 +53,7 @@ function terraceHeight(x, z) {
     const ridge = along * CLIMB.slope - Math.max(0, Math.abs(x) - CLIMB.ridge) * CLIMB.ridgeFall * (0.7 + 0.7 * wobble)
     h = Math.max(h, ridge)
   }
-  return Math.min(LOBBY.maxHill + (z < N ? 80 : 0), wallTop + Math.round((h - wallTop) / step) * step)
+  return Math.min(z < N ? Infinity : LOBBY.maxHill, wallTop + Math.round((h - wallTop) / step) * step)
 }
 
 function isOpen(x, z) {
@@ -65,10 +65,11 @@ function isOpen(x, z) {
 }
 
 // Grid lines: evenly spaced between the fixed lines, then outward from the outer ones.
-function gridLines(fixed, cell, reach) {
+// spans[i], if given, replaces `cell` between fixed[i] and fixed[i + 1].
+function gridLines(fixed, cell, reach, spans = []) {
   const lines = []
   for (let i = 0; i < fixed.length - 1; i++) {
-    const n = Math.max(1, Math.round((fixed[i + 1] - fixed[i]) / cell))
+    const n = Math.max(1, Math.round((fixed[i + 1] - fixed[i]) / (spans[i] ?? cell)))
     for (let k = 0; k < n; k++) lines.push(fixed[i] + ((fixed[i + 1] - fixed[i]) * k) / n)
   }
   const last = fixed[fixed.length - 1]
@@ -131,7 +132,7 @@ export function buildTerrain(scene) {
 
   // --- The terrain columns ---
   const xs = gridLines([-W, -CLIMB.ridge, -gap, gap, CLIMB.ridge, W], LOBBY.cell, LOBBY.reach)
-  const zs = gridLines([N - CLIMB.length, N - flankDepth, N, S], LOBBY.cell, LOBBY.reach)
+  const zs = gridLines([N - CLIMB.length, N - CLIMB.nearLength, N - flankDepth, N, S], LOBBY.cell, LOBBY.reach, [CLIMB.farCell])
   const nx = xs.length - 1
   const nz = zs.length - 1
   const heights = new Float32Array(nx * nz)
@@ -149,8 +150,10 @@ export function buildTerrain(scene) {
     const z = (zs[j] + zs[j + 1]) / 2
     return z < N ? Math.max(0, climbY(z) - 3) : 0 // sides dip under the hillside, reach the floor in the arena
   }
-  const green = new Quads()
+  // The terrace tops take the look of the climb's zone beside them.
+  const tops = new Map(ZONES.map((zone) => [zone, new Quads()]))
   const purple = new Quads()
+  let green = null
   const side = (ax, az, bx, bz, h, below, normal) => {
     if (below >= h) return
     const lipBottom = Math.max(below, h - lip)
@@ -165,6 +168,7 @@ export function buildTerrain(scene) {
       const x1 = xs[i + 1]
       const z0 = zs[j]
       const z1 = zs[j + 1]
+      green = tops.get(zoneAt((N - (z0 + z1) / 2) * RUN.metresPerS))
       green.add([[x0, h, z1], [x1, h, z1], [x1, h, z0], [x0, h, z0]], [0, 1, 0], [[x0, z1], [x1, z1], [x1, z0], [x0, z0]])
       side(x1, z1, x1, z0, h, neighbour(i + 1, j), [1, 0, 0])
       side(x0, z0, x0, z1, h, neighbour(i - 1, j), [-1, 0, 0])
@@ -172,13 +176,18 @@ export function buildTerrain(scene) {
       side(x1, z0, x0, z0, h, neighbour(i, j - 1), [0, 0, -1])
     }
   }
-  const greenMesh = new Mesh(green.geometry(), new MeshStandardMaterial({ map: greenTex, roughness: 0.85 }))
   const purpleMesh = new Mesh(purple.geometry(), new MeshStandardMaterial({ map: purpleTex, roughness: 0.9 }))
-  for (const m of [greenMesh, purpleMesh]) {
+  const meshes = [purpleMesh]
+  for (const [zone, quads] of tops) {
+    if (!quads.idx.length) continue
+    const tex = zone.brick ? toTexture(paintBrickCheck(...zone.brick), { repeat: tile, srgb: true, anisotropy: 16 }) : greenTex
+    meshes.push(new Mesh(quads.geometry(), new MeshStandardMaterial({ map: tex, roughness: 0.85 })))
+  }
+  for (const m of meshes) {
     m.receiveShadow = true
     m.frustumCulled = false
   }
-  scene.add(greenMesh, purpleMesh)
+  scene.add(...meshes)
 
   // --- The red stripe along the walls' feet + the pale line under the green lip ---
   const trim = new Blocks()

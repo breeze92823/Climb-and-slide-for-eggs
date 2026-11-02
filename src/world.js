@@ -9,7 +9,8 @@ import { Blocks } from './voxel.js'
 // The lobby, put together: the walled arena and its hills (terrain.js), the climb,
 // the trees, the stands and the player plots. Static props all land in one mesh;
 // update() runs the slide, the moving props and the particle clock.
-export function createWorld(scene) {
+// seat: the player's base plot (net.seat()).
+export function createWorld(scene, seat) {
   const { heightAt } = buildTerrain(scene)
   const particles = createParticles(scene)
   const bursts = createBursts(scene)
@@ -19,7 +20,7 @@ export function createWorld(scene) {
 
   const props = new Blocks()
   const stands = buildStands(scene, props, particles)
-  const bases = buildBases(scene, props, particles)
+  const bases = buildBases(scene, props, particles, seat)
   const mesh = props.mesh(propMaterial())
   mesh.frustumCulled = false
   scene.add(mesh)
@@ -29,6 +30,7 @@ export function createWorld(scene) {
     bursts,
     climb,
     bases,
+    signs: stands.signs,
     // preset: a graphicsPreset() result.
     configure(preset) {
       particles.setDensity(preset.particles)

@@ -1,5 +1,5 @@
 import { Clock, Group, LinearToneMapping, PCFSoftShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three'
-import { CAMERA, graphicsPreset, RENDER, SPAWN } from './config.js'
+import { BASES, CAMERA, graphicsPreset, RENDER, RUN, SPAWN } from './config.js'
 import * as bloxity from './bloxity.js'
 import { install as installInput, onKey, onKeyUp } from './input.js'
 import { installTouch } from './touch.js'
@@ -17,18 +17,21 @@ import { disposeAnimator, makeAnimator } from './avatar/animator.js'
 import { closeTopWindow, setWindowReserved } from './uiWindow.js'
 import { createIndexWindow } from './indexWindow.js'
 import { createClimbRun } from './climbRun.js'
+import { createWeather } from './weather.js'
 import { createLobbyHud } from './lobbyHud.js'
 import { createBaseFarm } from './baseFarm.js'
 import { createTraining } from './training.js'
 import { createWeightShop } from './weightShop.js'
 import { createTrailShop } from './trailShop.js'
 import { createStallPrompts } from './stallPrompts.js'
+import { createGoals } from './goals.js'
 import { createRebirthWindow } from './rebirthWindow.js'
 import { createPlaytimeWindow } from './playtimeWindow.js'
 import { createPetsWindow } from './petsWindow.js'
 import { createDailyWindow } from './dailyWindow.js'
 import { createSellWindow } from './sellWindow.js'
 import { createEggsWindow } from './eggsWindow.js'
+import { createCoinShop } from './coinShop.js'
 import * as petIndex from './petIndex.js'
 import * as net from './net.js'
 import { createRemotePlayers } from './remotePlayers.js'
@@ -40,6 +43,7 @@ let lighting = null
 let renderer = null
 let postfx = null
 let world = null
+let weather = null
 
 // Settings come from the portal's settings menu (or their defaults offline).
 function applySetting(key, value) {
@@ -53,6 +57,7 @@ function applySetting(key, value) {
     postfx?.configure(next)
     setNeonBloom(next.bloom)
     world?.configure(next)
+    weather?.setDensity(next.particles)
     postfx?.setSize(window.innerWidth, window.innerHeight)
   }
 }
@@ -87,12 +92,27 @@ resize()
 
 for (const key of Object.keys(bloxity.settings)) applySetting(key, bloxity.settings[key])
 
+// --- Save ---------------------------------------------------------------------
+// The player's progress comes from the game server before any system loads its part (saves.js);
+// with no server (or a guest) it is the browser's copy. A different player signing in later
+// reloads the page, so a save is never mixed with another account's. It comes before the world is
+// built because the room hands out the player's base seat when they join (net.seat()).
+await bloxity.authSettled()
+const saveOwner = net.identity()
+saves.setNamespace(saveOwner)
+bloxity.loadingStep('Loading your progress')
+await net.start()
+petIndex.loadIndex()
+bloxity.subscribeAuth(() => {
+  if (net.identity() !== saveOwner) location.reload()
+})
+
 // --- Physics + ground + sky --------------------------------------------------
 bloxity.loadingStep('Starting physics')
 await initPhysics()
 
 lighting = createLighting(scene, renderer, preset)
-world = createWorld(scene)
+world = createWorld(scene, net.seat())
 world.configure(preset)
 worldColliders()
 createPlayerBody()
@@ -157,20 +177,6 @@ onKey('KeyN', () => lighting.toggleDayNight())
 onKey('KeyR', respawn)
 installTouch({ mode: toggleMode, day: () => lighting.toggleDayNight(), respawn })
 
-// --- Save ---------------------------------------------------------------------
-// The player's progress comes from the game server before any system loads its part (saves.js);
-// with no server (or a guest) it is the browser's copy. A different player signing in later
-// reloads the page, so a save is never mixed with another account's.
-await bloxity.authSettled()
-const saveOwner = net.identity()
-saves.setNamespace(saveOwner)
-bloxity.loadingStep('Loading your progress')
-await net.start()
-petIndex.loadIndex()
-bloxity.subscribeAuth(() => {
-  if (net.identity() !== saveOwner) location.reload()
-})
-
 // Boxity's ad breaks pause the game (there is no audio to mute yet).
 let adBreak = false
 bloxity.onAdBreak((on) => (adBreak = on))
@@ -191,17 +197,26 @@ const travel = ({ x, z, facing }) => {
 const lobbyHud = createLobbyHud({ travel, run, indexWindow })
 const trails = createTrailShop({ hud: lobbyHud, scene })
 run.setStrengthMulti(trails.multi)
+run.setCoinPay(() => {
+  const pay = lobbyHud.rate() * RUN.coinPay
+  lobbyHud.addCash(pay)
+  return pay
+})
+weather = createWeather(scene, lighting)
+weather.setDensity(preset.particles)
 onKey('KeyG', lobbyHud.backpack.toggle)
 const rebirth = createRebirthWindow({ hud: lobbyHud })
+let baseTimer = 0
 const farm = createBaseFarm({ scene, camera, world, run, hud: lobbyHud, rebirth })
 onKey('KeyE', lobbyHud.press)
 onKeyUp('KeyE', lobbyHud.release)
 const playtime = createPlaytimeWindow({ hud: lobbyHud, farm })
 const daily = createDailyWindow({ hud: lobbyHud, farm })
 const sellWindow = createSellWindow({ hud: lobbyHud, farm })
-lobbyHud.setWindows({ pets: createPetsWindow({ hud: lobbyHud, farm }), rebirth, gift: playtime, daily, sell: sellWindow, eggs: createEggsWindow({ hud: lobbyHud, farm }), trails })
+lobbyHud.setWindows({ pets: createPetsWindow({ hud: lobbyHud, farm }), rebirth, gift: playtime, daily, sell: sellWindow, eggs: createEggsWindow({ hud: lobbyHud, farm }), trails, coins: createCoinShop({ hud: lobbyHud }) })
 const shop = createWeightShop({ hud: lobbyHud, bases: world.bases, run, camera })
 const stalls = createStallPrompts({ hud: lobbyHud, camera, sell: sellWindow, run })
+const goals = createGoals({ hud: lobbyHud, camera, farm, run, signs: world.signs, bursts: world.bursts })
 const training = createTraining({ group: playerGroup, world, run, shop })
 bloxity.onReservedAreas((areas) => {
   setWindowReserved(areas)
@@ -243,12 +258,19 @@ renderer.setAnimationLoop(() => {
   shop.update()
   trails.update(dt)
   stalls.update()
+  goals.update(dt)
   lobbyHud.update(dt)
   farm.update(dt, elapsed)
+  baseTimer += dt
+  if (baseTimer >= BASES.petBroadcast) {
+    baseTimer = 0
+    net.sendBase({ ...farm.summary(), w: shop.equipped().id }) // the others draw this plot (deduplicated)
+  }
   remotes.update(dt)
   rebirth.update()
   playtime.update()
   daily.update()
+  weather.update(dt, elapsed, camera, player.position.z, renderer.domElement.height)
   lighting.update(dt, playerGroup.position)
   bloxity.setAdScreen(run.busy() ? null : 'lobby') // banner ads only while the player is in the lobby
   postfx.render()
@@ -274,5 +296,5 @@ if (import.meta.env.DEV) {
     resetPlayer({ x, y, z }, facing)
     syncYawToPlayer()
   }
-  window.__game = { net, remotes, player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, index: petIndex, indexWindow, run, farm, training, shop, trails, rebirth, playtime, hud: lobbyHud }
+  window.__game = { net, remotes, player, scene, renderer, camera, postfx, bodies: bodyCount, toggleMode, teleport, index: petIndex, indexWindow, run, farm, training, shop, trails, rebirth, playtime, goals, hud: lobbyHud }
 }

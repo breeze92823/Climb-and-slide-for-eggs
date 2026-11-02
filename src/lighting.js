@@ -170,6 +170,50 @@ export function createLighting(scene, renderer, preset) {
   const lerp = (a, b, t) => a + (b - a) * t
   const mix = (key, out) => out.set(D[key]).lerp(c.set(N[key]), night)
 
+  // The sky of the climb zone the player is in (ZONES): laid over the mood, less so at night.
+  const OVERLAY = ['zenith', 'horizon', 'cloud', 'sunColor', 'hemiSky', 'hemiGround']
+  const overlay = Object.fromEntries(OVERLAY.map((key) => [key, new Color()]))
+  const overlayFog = { near: FOG.near, far: FOG.far }
+  let zoneSky = null
+  let weight = 0 // how much of the overlay shows
+  let settling = false
+  let flash = 0 // lightning, 1 down to 0
+
+  function applyZone() {
+    const k = weight * (1 - night * 0.6)
+    const u = skyMaterial.uniforms
+    u.top.value.lerp(overlay.zenith, k)
+    u.bottom.value.lerp(overlay.horizon, k)
+    u.sunColor.value.lerp(overlay.sunColor, k)
+    u.cloudColor.value.lerp(overlay.cloud, k)
+    scene.fog.color.lerp(overlay.horizon, k)
+    sun.color.lerp(overlay.sunColor, k)
+    hemi.color.lerp(overlay.hemiSky, k)
+    hemi.groundColor.lerp(overlay.hemiGround, k)
+    scene.fog.near = lerp(FOG.near, overlayFog.near, weight)
+    scene.fog.far = lerp(FOG.far, overlayFog.far, weight)
+    u.top.value.lerp(c.set('#ffffff'), flash * 0.75)
+    u.bottom.value.lerp(c, flash * 0.5)
+    hemi.intensity += flash * 2.5
+  }
+
+  function settleZone(dt) {
+    const k = 1 - Math.exp(-dt * 1.6)
+    const goal = zoneSky ? 1 : 0
+    if (zoneSky) {
+      for (const key of OVERLAY) overlay[key].lerp(c.set(zoneSky[key]), weight < 0.01 ? 1 : k)
+      overlayFog.near = lerp(overlayFog.near, zoneSky.fog[0], weight < 0.01 ? 1 : k)
+      overlayFog.far = lerp(overlayFog.far, zoneSky.fog[1], weight < 0.01 ? 1 : k)
+    }
+    weight = lerp(weight, goal, k)
+    if (Math.abs(weight - goal) < 0.01 && (!zoneSky || OVERLAY.every((key) => Math.abs(overlay[key].r - c.set(zoneSky[key]).r) < 0.01))) {
+      weight = goal
+      settling = false
+      apply()
+      bakeEnvironment(night)
+    }
+  }
+
   function apply() {
     const t = night
     mix('zenith', skyMaterial.uniforms.top.value)
@@ -195,6 +239,7 @@ export function createLighting(scene, renderer, preset) {
       lamp.light.intensity = lampLevel
       lamp.bulb.emissiveIntensity = 0.3 + (lampLevel / N.lampIntensity) * 3
     }
+    applyZone()
   }
 
   apply()
@@ -215,6 +260,14 @@ export function createLighting(scene, renderer, preset) {
     toggleDayNight() {
       target = target === 1 ? 0 : 1
     },
+    // A climb zone's `sky`, or null for the mood alone; blends over a few seconds.
+    setZoneSky(sky) {
+      zoneSky = sky
+      settling = true
+    },
+    bolt() {
+      flash = 1
+    },
     setShadows(next) {
       sun.castShadow = next.shadows
       if (sun.shadow.mapSize.x !== next.shadowMap) {
@@ -231,7 +284,12 @@ export function createLighting(scene, renderer, preset) {
         apply()
         if (Math.abs(night - bakedAt) > 0.08 || night === target) bakeEnvironment(night)
       }
-      sky.position.set(focus.x, 0, focus.z)
+      if (settling) settleZone(dt)
+      if (settling || flash > 0) {
+        flash = Math.max(0, flash - dt * 3.5)
+        apply()
+      }
+      sky.position.set(focus.x, focus.y, focus.z)
       stars.position.copy(sky.position)
       sun.position.set(focus.x + dir.x * 90, focus.y + dir.y * 90, focus.z + dir.z * 90)
       sun.target.position.set(focus.x, focus.y, focus.z)

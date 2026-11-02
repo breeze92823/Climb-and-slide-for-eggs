@@ -215,6 +215,9 @@
   box-shadow: 0 0 0 max(1px, calc(2 * var(--uiw-u))) #111317;
   border-radius: calc(3 * var(--uiw-u));
 }
+.ix-card[hidden] {
+  display: none; /* another tab's pet */
+}
 .ix-card img {
   position: absolute;
   inset: 0;

@@ -1,11 +1,11 @@
-import { AdditiveBlending, CanvasTexture, Group, Mesh, Sprite, SpriteMaterial, SRGBColorSpace, Vector3 } from 'three'
-import { CLIMB, climbY, INDEX, LOBBY, RUN } from './config.js'
+import { AdditiveBlending, CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, Quaternion, Sprite, SpriteMaterial, SRGBColorSpace, Vector3 } from 'three'
+import { CLIMB, climbY, INDEX, LOBBY, RUN, zoneAt } from './config.js'
 import { aimCamera } from './camera.js'
 import { lockStone } from './climb.js'
 import { createClimbHud } from './climbHud.js'
 import { inputState, onKey } from './input.js'
 import { revealEgg } from './petIndex.js'
-import { player } from './player.js'
+import { player, resetPlayer } from './player.js'
 import { label, std } from './propkit.js'
 import { paintSoftDot } from './textures.js'
 import { speckle, voxelGeometry } from './voxel.js'
@@ -25,6 +25,20 @@ const waterX = (water[0] + water[1]) / 2
 const zAt = (s) => N - s
 const luckAt = (m) => 1 + RUN.luck[0] * m + RUN.luck[1] * m * m
 const OVERHEAD = 2.05 // m above the feet the carried egg sits
+
+const paceAt = (m) => Math.min(RUN.paceMax, Math.max(1, m / RUN.paceFrom))
+
+// HUD metres a run reaches with this strength (RUN.reach).
+function reachOf(points) {
+  const [[s0, m0]] = RUN.reach
+  if (points <= s0) return Math.round((points * m0) / s0)
+  for (let i = 1; i < RUN.reach.length; i++) {
+    const [a, from] = RUN.reach[i - 1]
+    const [b, to] = RUN.reach[i]
+    if (points < b) return Math.round(from + ((to - from) * Math.log(points / a)) / Math.log(b / a))
+  }
+  return RUN.reach.at(-1)[1]
+}
 
 const tierAt = (m) => RUN.tiers.reduce((at, tier, i) => (m >= tier.m ? i : at), -1)
 const eggName = (id) => INDEX.eggs.find((e) => e.id === id)?.name ?? id
@@ -63,7 +77,9 @@ export function createClimbRun({ scene, group, camera, world }) {
   const hud = createClimbHud({ onAuto: toggleAuto, onSlot: selectSlot })
   hud.setStrength(save.strength)
   hud.setAuto(save.auto)
-  climb.setBest(save.best)
+  hud.setBestMark(save.best)
+  const showBest = (metres) => climb.setBest(metres, bloxity.displayName())
+  showBest(save.best)
 
   // --- The eggs ------------------------------------------------------------------------
   const mystery = new Mesh(lockStone(0.5), std('#ffffff', { vertexColors: true, roughness: 0.7, emissive: '#ffffff', emissiveIntensity: 0 }))
@@ -137,6 +153,36 @@ export function createClimbRun({ scene, group, camera, world }) {
   group.add(orb)
   const orbWorld = new Vector3()
 
+  // --- The coins on the stairs: a few instances, always the next ones up -----------------
+  const coinS = RUN.coinStep / RUN.metresPerS
+  const coins = new InstancedMesh(new CylinderGeometry(0.42, 0.42, 0.12, 14), std('#ffd23a', { metalness: 0.4, roughness: 0.35, emissive: '#c88a10', emissiveIntensity: 0.5 }), RUN.coinsShown)
+  coins.frustumCulled = false
+  coins.visible = false
+  scene.add(coins)
+  const coinMatrix = new Matrix4()
+  const coinTurn = new Quaternion()
+  const coinAxis = new Vector3(0, 1, 0)
+  const coinUp = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+  const coinPos = new Vector3()
+  const coinScale = new Vector3(1, 1, 1)
+  let nextCoin = 1 // index of the next coin, the first at coinS
+  let coinCash = 0 // paid this run
+  let coinPay = () => 0 // pays one, returns how much; set from main.js
+  let spin = 0
+
+  function drawCoins(dt) {
+    spin += dt * 4
+    coinTurn.setFromAxisAngle(coinAxis, spin).multiply(coinUp)
+    for (let i = 0; i < RUN.coinsShown; i++) {
+      const at = (nextCoin + i) * coinS
+      coinPos.set(stairX, climbY(zAt(at)) + 1.3, zAt(at))
+      if (at >= L - 1) coinScale.setScalar(0)
+      else coinScale.setScalar(1)
+      coins.setMatrixAt(i, coinMatrix.compose(coinPos, coinTurn, coinScale))
+    }
+    coins.instanceMatrix.needsUpdate = true
+  }
+
   // --- State ---------------------------------------------------------------------------
   let state = 'idle' // idle, climb, hop, slide, fly
   let s = 0 // metres north of the wall
@@ -146,11 +192,15 @@ export function createClimbRun({ scene, group, camera, world }) {
   let strengthMulti = () => 1 // the equipped trail's, set from main.js
   const gained = (n) => Math.max(1, Math.round(n * strengthMulti()))
   let maxStrength = 1
+  let pace = 1 // times the run's speeds
   let boost = 0 // m/s from tapping
   let autoWait = 0
   let passed = -1 // highest checkpoint passed
   let milestone = 0
   let bestAtStart = 0
+  let boardAt = 0 // metres the YOUR BEST board shows
+  let nextPad = 1
+  let zone = null
   let recordShown = false
   let hopT = 0
   let hopFrom = 0
@@ -179,11 +229,18 @@ export function createClimbRun({ scene, group, camera, world }) {
     state = 'climb'
     s = fromS
     m = peak = s * RUN.metresPerS
-    maxStrength = strength = Math.round(save.strength * RUN.strengthScale)
+    maxStrength = strength = reachOf(save.strength)
+    pace = paceAt(maxStrength)
     boost = 0
     passed = tierAt(m)
     milestone = Math.floor(m / RUN.milestone)
     bestAtStart = save.best
+    boardAt = save.best
+    nextCoin = Math.floor(s / coinS) + 1
+    coinCash = 0
+    coins.visible = true
+    nextPad = Math.floor(m / RUN.padStep) + 1
+    zone = zoneAt(m)
     recordShown = false
     eggGlow = 1
     eggPop = 1
@@ -198,7 +255,7 @@ export function createClimbRun({ scene, group, camera, world }) {
     showHeld()
     aimCamera(0, 0.3)
     hud.enterRun()
-    hud.setBar(strength, maxStrength)
+    hud.setBar(strength, maxStrength, save.strength)
     hud.setLuck(1)
     hud.setMeter(m)
     hud.tag(RUN.tiers[Math.max(passed, 0)])
@@ -216,6 +273,8 @@ export function createClimbRun({ scene, group, camera, world }) {
 
   function hop() {
     state = 'hop'
+    coins.visible = false
+    pace = paceAt(peak)
     hopT = 0
     hopFrom = player.position.x
     player.velocity.x = player.velocity.z = 0
@@ -237,8 +296,9 @@ export function createClimbRun({ scene, group, camera, world }) {
     const gain = gained(RUN.strengthPerRun)
     save.strength += gain
     hud.setStrength(save.strength)
-    hud.result({ metres: Math.floor(peak), newBest, gain })
-    climb.setBest(save.best)
+    hud.result({ metres: Math.floor(peak), newBest, gain, cash: coinCash })
+    showBest(save.best)
+    hud.setBestMark(save.best)
     store(save)
     if (newBest) bloxity.submitScore('best-climb', peak)
     bloxity.submitScore('strength', save.strength)
@@ -283,7 +343,7 @@ export function createClimbRun({ scene, group, camera, world }) {
       }
       boost = Math.max(0, boost - RUN.boostDecay * dt)
       const speed = RUN.speed + boost
-      const step = Math.min(speed * dt, strength)
+      const step = Math.min(speed * pace * dt, strength)
       m += step
       peak = m
       strength -= step
@@ -292,7 +352,7 @@ export function createClimbRun({ scene, group, camera, world }) {
       p.z = zAt(s)
       p.y = climbY(p.z)
       player.velocity.z = -speed
-      hud.setBar(strength, maxStrength)
+      hud.setBar(strength, maxStrength, save.strength)
       hud.setLuck(luckAt(m))
       hud.setMeter(m)
       const tier = tierAt(m)
@@ -303,6 +363,27 @@ export function createClimbRun({ scene, group, camera, world }) {
         bursts.emit({ count: 36, pos: [p.x, p.y + 2.2, p.z], spread: [1.6, 1.6, 0.6], radial: 2.4, life: 0.9, size: 0.34, color: RUN.tiers[tier].color, color2: '#ffffff' })
       }
       checkpointBanner()
+      const here = zoneAt(m)
+      if (here !== zone) {
+        zone = here
+        hud.headline(zone.name.toUpperCase())
+      }
+      while (nextCoin * coinS <= s) {
+        nextCoin++
+        coinCash += coinPay()
+        bursts.emit({ count: 8, pos: [p.x, p.y + 1.3, p.z], spread: [0.3, 0.3, 0.3], radial: 3, life: 0.45, size: 0.22, color: '#ffd23a', color2: '#ffffff' })
+      }
+      if (nextPad * RUN.padStep <= m) {
+        nextPad++
+        boost = RUN.maxBoost
+        hud.tag({ name: 'Speed Boost', color: '#fff27a' })
+        bursts.emit({ count: 22, pos: [p.x, p.y + 0.4, p.z], spread: [1.2, 0.2, 0.6], vel: [0, 2, -3], jitter: [1, 1, 1], life: 0.6, size: 0.26, color: '#fff27a', color2: '#ffffff' })
+      }
+      if (m > bestAtStart && m >= boardAt + RUN.bestStep) {
+        boardAt = m
+        showBest(m)
+        hud.setBestMark(m)
+      }
       if (Math.floor(m / RUN.milestone) > milestone) {
         milestone = Math.floor(m / RUN.milestone)
         hud.milestone(milestone * RUN.milestone)
@@ -330,12 +411,12 @@ export function createClimbRun({ scene, group, camera, world }) {
         bursts.emit({ layer: 'chunk', count: 26, pos: [p.x, p.y + 0.15, p.z], spread: [1, 0.05, 0.5], vel: [0, 3.5, 1], jitter: [2, 1.6, 1.5], gravity: -16, life: 0.6, size: 0.17, color: '#ffffff', color2: '#7feeff' })
       }
     } else if (state === 'slide') {
-      slideSpeed = Math.min(RUN.slideMax, slideSpeed + RUN.slideAccel * dt)
+      slideSpeed = Math.min(RUN.slideMax * pace, slideSpeed + RUN.slideAccel * pace * dt)
       s -= (slideSpeed / slopeLen) * dt
       m = Math.max(0, s) * RUN.metresPerS
       p.z = zAt(s)
       p.y = climbY(p.z) + RUN.waterLift
-      player.velocity.z = slideSpeed
+      player.velocity.z = Math.min(slideSpeed, RUN.slideMax)
       hud.setMeter(m)
       hud.setSlideHeight(m)
       spray -= dt
@@ -368,17 +449,22 @@ export function createClimbRun({ scene, group, camera, world }) {
     // Once a frame: the trigger, the eggs' looks and the hatch.
     update(dt) {
       hud.update(dt, state === 'climb' ? 0.45 + (0.55 * boost) / RUN.maxBoost : state === 'slide' ? 1 : 0)
+      if (coins.visible) drawCoins(dt)
       if (state !== 'idle' && player.drive !== tick) {
         // A respawn took the player off the climb.
         state = 'idle'
+        coins.visible = false
         mystery.visible = false
         hud.exitRun()
         showHeld()
       }
-      if (state === 'idle' && !player.drive && player.grounded) {
+      if (state === 'idle' && !player.drive) {
         const p = player.position
         const from = N - p.z
-        if (p.x > stairs[0] - 0.2 && p.x < stairs[1] + 0.2 && from > 0.05 && from < L - 1) start(from)
+        const onStairs = p.x > stairs[0] - 0.2 && p.x < stairs[1] + 0.2
+        if (onStairs && player.grounded && from > 0.05 && from < L - 1) start(from)
+        // Not a wall: the camera's ray and the ride off the slide would meet it.
+        else if (!onStairs && from > RUN.footLimit) resetPlayer({ x: p.x, y: Math.max(p.y, climbY(N - RUN.footLimit)), z: N - RUN.footLimit }, player.facing)
       }
       if (mystery.visible) {
         eggGlow = Math.max(0, eggGlow - dt / 1.4)
@@ -433,6 +519,9 @@ export function createClimbRun({ scene, group, camera, world }) {
     },
     setStrengthMulti(fn) {
       strengthMulti = fn
+    },
+    setCoinPay(fn) {
+      coinPay = fn
     },
     eggs: stacks,
     slot: () => slot,

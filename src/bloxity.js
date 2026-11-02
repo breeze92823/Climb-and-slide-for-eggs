@@ -2,7 +2,7 @@
 // here may throw when the SDK is missing: a blocked sdk.bloxity.io leaves the
 // game fully playable on the default avatar and keyboard controls.
 // Docs: https://docs.bloxity.io/#html5
-import { ADS, GAME_SLUG, GAME_TITLE, LEADERBOARDS, SETTINGS, DEV_MODE, coerceSetting } from './config.js'
+import { ADS, GAME_SLUG, GAME_TITLE, LEADERBOARDS, LEADERBOARD_DEV_ROWS, SETTINGS, DEV_MODE, coerceSetting } from './config.js'
 
 export function sdk() {
   if (DEV_MODE) return null
@@ -146,7 +146,11 @@ export function displayName() {
 // The player's Bloxity profile picture (user, else the guest's derived one) as an absolute
 // http(s) URL, '' when there is none. Relative paths resolve against the CDN (staticUrl).
 export function getPfp() {
-  const raw = authState.user?.pfp || authState.guest?.pfp
+  return absoluteUrl(authState.user?.pfp || authState.guest?.pfp)
+}
+
+// A Bloxity picture path as an absolute http(s) URL ('' when it is not one).
+function absoluteUrl(raw) {
   if (typeof raw !== 'string' || !raw) return ''
   try {
     let base = 'https://static.bloxity.io'
@@ -432,6 +436,16 @@ export function updateRoom(roomId) {
   }
 }
 
+// The shareable "Invite Friends" URL that drops whoever opens it into the room reported by
+// updateRoom(). '' when the SDK is missing.
+export function inviteLink() {
+  try {
+    return sdk()?.social?.getInviteFriendsLink?.() || ''
+  } catch {
+    return ''
+  }
+}
+
 // --- Portal -----------------------------------------------------------
 export function showMenu() {
   try {
@@ -505,6 +519,27 @@ export function submitScore(id, score) {
   const wait = LEADERBOARD_GAP - (Date.now() - b.at)
   if (wait <= 0) send()
   else b.timer = setTimeout(send, wait)
+}
+
+// The global top `limit` of a board: { rows: [{ rank, name, score, pfp }], me } (me = the player's own
+// row or null), or null when the SDK or the request is unavailable. Without the SDK in dev mode it is
+// the sample list in config.
+export async function fetchTop(id, limit = 5) {
+  const SDK = sdk()
+  if (!SDK) {
+    const sample = DEV_MODE ? LEADERBOARD_DEV_ROWS[id] : null
+    return sample ? { rows: sample.map(([name, score], i) => ({ rank: i + 1, name, score, pfp: '' })), me: null } : null
+  }
+  if (typeof SDK.leaderboard?.getTop !== 'function') return null
+  try {
+    const res = await SDK.leaderboard.getTop(id, { period: 'all', limit })
+    const row = (r) => ({ rank: r.rank, name: String(r.displayName || r.username || 'Player'), score: Number(r.score) || 0, pfp: absoluteUrl(r.pfp) })
+    const rows = Array.isArray(res?.rows) ? res.rows.slice(0, limit).map(row) : []
+    return { rows, me: res?.me && Number.isFinite(res.me.rank) ? row(res.me) : null }
+  } catch (err) {
+    console.warn('[bloxity] leaderboard.getTop failed', err)
+    return null
+  }
 }
 
 // --- Ads -------------------------------------------------------------------------------------

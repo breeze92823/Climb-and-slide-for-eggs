@@ -2,13 +2,16 @@
 // Base, Play and Buy travel, Index and the backpack open their windows, cash earns the player's
 // base rate. main.js hands it the windows that need the HUD themselves (setWindows). What has no
 // system behind it yet opens a Coming Soon window, so no button is dead.
-// All of it steps aside on a climb (body.run-active), bar the event timer.
+// All of it steps aside on a climb (body.run-active), .
 import './lobbyHud.css'
 import { BASES, FARM, LOBBY_HUD, STANDS } from './config.js'
 import { createWindow } from './uiWindow.js'
+import { COIN } from './coinIcon.js'
+import { onCoins } from './coins.js'
+import * as net from './net.js'
+import * as bloxity from './bloxity.js'
 import * as saves from './saves.js'
 
-const COIN = '<svg viewBox="0 0 24 24"><path d="M12 2 21 7v10l-9 5-9-5V7Z" fill="#26b54a" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.4" fill="none" stroke="#fff" stroke-width="2.4"/></svg>'
 const ICONS = {
   base: '<svg viewBox="0 0 64 64"><path d="M6 32 32 8l26 24H48v24H16V32Z" fill="#f2c14e" stroke="#2a1a0a" stroke-width="4" stroke-linejoin="round"/><rect x="26" y="38" width="12" height="18" fill="#a65a2a" stroke="#2a1a0a" stroke-width="3"/></svg>',
   ladder: '<svg viewBox="0 0 32 64"><rect x="3" y="2" width="26" height="60" fill="#f6f4ee" stroke="#2c2c34" stroke-width="3"/><path d="M10 4v56M22 4v56M10 14h12M10 28h12M10 42h12M10 14l12 14M22 14 10 28M10 42l12 12M22 42 10 54" fill="none" stroke="#3a3a44" stroke-width="2.6"/></svg>',
@@ -81,7 +84,7 @@ export function createLobbyHud({ travel, run, indexWindow }) {
     soonText.textContent = 'Coming soon!'
     soon.open()
   }
-  const windows = {} // pets, rebirth, gift, daily, sell, eggs, trails (setWindows)
+  const windows = {} // pets, rebirth, gift, daily, sell, eggs, trails, coins (setWindows)
   const show = (name) => () => windows[name].toggle()
 
   const backpack = createWindow({ title: 'Backpack', className: 'lh-window', onOpen: () => fillBackpack() })
@@ -99,13 +102,13 @@ export function createLobbyHud({ travel, run, indexWindow }) {
   }
 
   // --- Top: travel --------------------------------------------------------------------------
-  const owner = BASES.list.find((b) => b.owner)
+  const ownerX = BASES.list[net.seat()].x // the plot the room gave this player
   const nav = el(root, 'lh-nav')
   // Inside the plot the first tab sells instead (setInBase).
   let home = false
   const tab = button(nav, 'lh-tab lh-tab-base', `<span class="lh-tab-word lh-text">Base</span>`, () => {
     if (home) windows.sell.toggle()
-    else travel({ x: owner.x, z: BASES.front + 3, facing: 0 })
+    else travel({ x: ownerX, z: BASES.front + 3, facing: 0 })
   })
   const tabWord = tab.querySelector('.lh-tab-word')
   const offline = el(root, 'lh-offline lh-text')
@@ -119,12 +122,12 @@ export function createLobbyHud({ travel, run, indexWindow }) {
   const feed = el(root, 'lh-feed')
   const cashRow = el(root, 'lh-cash lh-text', '<span class="lh-cash-art"></span><span class="lh-cash-num"></span>')
   const cashNum = cashRow.querySelector('.lh-cash-num')
+  const coinRow = el(root, 'lh-coins lh-text', `${COIN}<span class="lh-coins-num"></span>`)
+  const coinNum = coinRow.querySelector('.lh-coins-num')
+  button(coinRow, 'lh-coins-add lh-text', '+', show('coins'))
+  onCoins((n) => (coinNum.textContent = formatCash(n)))
 
   // --- Right: offers and buttons ---------------------------------------------------------------
-  const offers = el(root, 'lh-offers')
-  button(offers, 'lh-offer lh-starter lh-text', `<span class="lh-offer-big">STARTER PACK!</span><span class="lh-offer-price">ONLY 6 ${COIN}</span>`, later('Starter Pack'))
-  button(offers, 'lh-offer lh-boost lh-text', `<span class="lh-offer-big">x1.5 STRENGTH</span><span class="lh-offer-price">ONLY 2 ${COIN}</span>`, later('x1.5 Strength'))
-
   const grid = el(root, 'lh-grid')
   card(grid, 'Index', 'index', indexWindow.toggle)
   card(grid, 'Shop', 'shop', show('trails'), '<span class="lh-ribbon lh-text">FREE!</span>')
@@ -132,21 +135,30 @@ export function createLobbyHud({ travel, run, indexWindow }) {
   const giftCard = card(grid, 'Ready!', 'gift', show('gift'), '<span class="lh-badge lh-text">1</span>')
   const giftWord = giftCard.querySelector('.lh-card-word')
   const giftBadge = giftCard.querySelector('.lh-badge')
-  button(grid, 'lh-pass', `<span class="lh-ribbon lh-text">NEW!</span><span class="lh-pass-art">${ICONS.pass}</span><span class="lh-pass-word lh-text">Event Pass</span><span class="lh-badge lh-text">1</span>`, later('Event Pass'))
 
   // --- Bottom ---------------------------------------------------------------------------------
   const perks = el(root, 'lh-perks')
   let dailyCard = null
-  for (const [icon, text, title] of [['perk', '+0%', 'Premium'], ['friends', '+0%', 'Friends'], ['calendar', '', 'Daily Rewards'], ['joystick', '', 'Minigames']]) {
-    const daily = icon === 'calendar'
-    const b = button(perks, 'lh-perk', `${ICONS[icon]}${text ? `<span class="lh-perk-word lh-text">${text}</span>` : ''}`, daily ? show('daily') : later(title))
-    if (daily) dailyCard = b
-  }
+  button(perks, 'lh-perk', ICONS.friends, async () => {
+    const link = bloxity.inviteLink()
+    if (!link) return toast('Invites are not available here')
+    try {
+      await navigator.clipboard.writeText(link)
+      toast('Invite link copied! Share it with friends')
+    } catch {
+      window.prompt('Copy this link to invite friends', link)
+    }
+  })
+  dailyCard = button(perks, 'lh-perk', ICONS.calendar, show('daily'))
   button(root, 'lh-backpack lh-text', '<span class="lh-key">[G] </span>Open Backpack', backpack.toggle)
-  const timer = el(root, 'lh-timer lh-text', '<div>Next Event</div><div class="lh-timer-t"></div>')
-  const timerText = timer.querySelector('.lh-timer-t')
   const toastEl = el(document.body, 'lh-toast lh-text') // over the windows too
   toastEl.addEventListener('animationend', () => toastEl.classList.remove('on'))
+  const toast = (text) => {
+    toastEl.textContent = text
+    toastEl.classList.remove('on')
+    void toastEl.offsetWidth // restarts the animation
+    toastEl.classList.add('on')
+  }
   const promptEl = button(root, 'lh-prompt', '<span class="lh-prompt-fill"></span><span class="lh-prompt-key">E</span><span class="lh-prompt-word"></span><span class="lh-prompt-hint">Hold</span>', () => {})
   const promptWord = promptEl.querySelector('.lh-prompt-word')
   let promptAction = null
@@ -211,7 +223,6 @@ export function createLobbyHud({ travel, run, indexWindow }) {
   let animalRate = 0
   let wait = LOBBY_HUD.incomeEvery
   let saveWait = LOBBY_HUD.saveEvery
-  let shownClock = ''
   cashNum.textContent = `${formatCash(cash)}$`
 
   function earn() {
@@ -294,12 +305,7 @@ export function createLobbyHud({ travel, run, indexWindow }) {
       giftBadge.style.display = count ? '' : 'none'
       giftWord.textContent = word
     },
-    toast(text) {
-      toastEl.textContent = text
-      toastEl.classList.remove('on')
-      void toastEl.offsetWidth // restarts the animation
-      toastEl.classList.add('on')
-    },
+    toast,
     onPrompt(fn) {
       promptAction = fn
     },
@@ -334,10 +340,6 @@ export function createLobbyHud({ travel, run, indexWindow }) {
         saveWait = LOBBY_HUD.saveEvery
         storeCash(cash)
       }
-      // Counts down to the next whole period of the clock.
-      const left = LOBBY_HUD.eventEvery - (Math.floor(Date.now() / 1000) % LOBBY_HUD.eventEvery)
-      const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
-      if (clock !== shownClock) timerText.textContent = shownClock = clock
     },
   }
 }

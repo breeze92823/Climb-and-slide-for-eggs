@@ -3,13 +3,14 @@ import { BASES, LOBBY } from './config.js'
 import { fontReady, label, solidBox, solidPole, std } from './propkit.js'
 import { paintPortrait, paintSign, paintUpgradeButton } from './textures.js'
 import { Blocks } from './voxel.js'
-import { dumbbellPlate, petModel } from './pets.js'
+import * as net from './net.js'
+import { createRemoteBase } from './remoteBases.js'
 
-// The player plots along the south wall: a fence with a gap in front, the pets inside,
-// a floating owner sign, and out on the floor each plot's training pad. The static
-// parts go in the shared `b`; only the gold crates another player is lifting move.
-const RARITY = { CYBER: '#3fe0ff', SPECIAL: '#ffd24a', LEGEND: '#ff7a3a', Titanium: '#c8d4e0', Common: '#d8d8d8' }
-const AURA = { dragon: '#58f05a', shark: '#58f05a', pigeon: '#58f05a', puffer: '#ffcf5a', diamond: '#7ce8ff' }
+// The player plots along the south wall, one per room seat: a fence with a gap in front, a
+// floating owner sign, and out on the floor each plot's training pad. The local player's seat is
+// theirs (pets, Upgrade Base sign, Upgrades pad: baseFarm.js); the others show whoever holds the
+// seat (remoteBases.js) and wait empty otherwise. The static parts go in the shared `b`; only the
+// gold crates another player is lifting move.
 
 function fenceRun(b, style, ax, az, bx, bz) {
   const f = BASES.fences[style]
@@ -50,26 +51,7 @@ function disc(radius, height, segments, color) {
   return g
 }
 
-function dumbbell(b, x, z, yaw, k = 1) {
-  const plate = dumbbellPlate()
-  b.at(x, 0, z, yaw)
-  b.box(0.3 * k, 0.3 * k, 2.4 * k, 0, 0.95 * k, 0, '#6f7a7c')
-  b.add(plate, 0, 0.95 * k, 1 * k, 0, k)
-  b.add(plate, 0, 0.95 * k, -1 * k, Math.PI, k)
-  b.at()
-}
-
-// The cyan crystal one player trains with.
-function crystal(b, particles, x, z) {
-  b.at(x, 0, z)
-  b.box(0.7, 0.9, 0.7, 0, 0.5, 0, '#f0f8ff')
-  b.box(0.8, 1.6, 0.34, 0, 1.6, 0, '#7ce8ff', [0, 0.5, 0.1])
-  b.box(0.5, 1.2, 0.3, 0.2, 2.2, 0.1, '#b4f4ff', [0, -0.4, -0.15])
-  b.at()
-  particles.add({ layer: 'glow', count: 8, pos: [x, 1.7, z], spread: [0.5, 0.8, 0.5], vel: [0, 0.3, 0], jitter: [0.1, 0.1, 0.1], life: 1.6, size: 0.6, color: '#7ce8ff' })
-}
-
-function trainingPad(scene, b, particles, base, cx) {
+function trainingPad(scene, b, base, cx) {
   const { padOffset, padRadius: r } = BASES
   const x = cx + padOffset.x
   const z = BASES.front + padOffset.z
@@ -77,43 +59,42 @@ function trainingPad(scene, b, particles, base, cx) {
   b.add(disc(r, 0.06, 18, '#6414ff'), x, 0.03, z)
   b.add(disc(r - 0.14, 0.08, 18, '#d48cff'), x, 0.04, z)
   b.add(disc(r - 0.3, 0.1, 18, '#dcd6cc'), x, 0.05, z)
-  if (base.weight === 'dumbbell' && !base.owner) dumbbell(b, x, z, 1.15, 0.55)
-  if (base.weight === 'crystal') crystal(b, particles, x, z)
-  if (base.owner) {
-    // Its own mesh: the player picks this one up, and it is whichever weight is equipped.
-    const weight = new Mesh(undefined, std('#ffffff', { vertexColors: true, roughness: 0.6 }))
-    weight.position.set(x, 0, z)
-    weight.rotation.y = 1.15
-    weight.castShadow = true
-    scene.add(weight)
-    const paintGain = (text) => {
-      const gain = label([[[text, '#ffc66a']]], 0.72, { font: '800 72px Fredoka, "Arial Black", sans-serif', outline: '#3a2410', outlineWidth: 9 })
-      gain.position.set(x, 3.1, z)
-      return gain
-    }
-    const up = BASES.upgrades
-    const ux = cx + up.x
-    const uz = BASES.front + up.z
-    b.box(2.7, 0.08, 1.9, ux, 0.04, uz, '#ffffff')
-    b.box(2.34, 0.12, 1.54, ux, 0.08, uz, '#ffe01e')
-    const paintCost = (text) => {
-      const cost = label([[['Upgrades', '#ffffff']], [[text, '#57f06a']]], 0.82, { font: '700 56px Fredoka, "Arial Black", sans-serif', outlineWidth: 7 })
-      cost.position.set(ux, 1.2, uz)
-      return cost
-    }
-    return { x, z, radius: r, weight, paintGain, paintCost, upgrades: { x: ux, z: uz } }
+  // Its own mesh: whichever weight is equipped (yours: the player picks this one up) or the
+  // occupant's; hidden on an empty plot.
+  const weight = new Mesh(undefined, std('#ffffff', { vertexColors: true, roughness: 0.6 }))
+  weight.position.set(x, 0, z)
+  weight.rotation.y = 1.15
+  weight.castShadow = true
+  weight.visible = !!base.owner
+  scene.add(weight)
+  const pad = { x, z, radius: r, weight }
+  if (!base.owner) return pad
+  const paintGain = (text) => {
+    const gain = label([[[text, '#ffc66a']]], 0.72, { font: '800 72px Fredoka, "Arial Black", sans-serif', outline: '#3a2410', outlineWidth: 9 })
+    gain.position.set(x, 3.1, z)
+    return gain
   }
-  return null
+  const up = BASES.upgrades
+  const ux = cx + up.x
+  const uz = BASES.front + up.z
+  b.box(2.7, 0.08, 1.9, ux, 0.04, uz, '#ffffff')
+  b.box(2.34, 0.12, 1.54, ux, 0.08, uz, '#ffe01e')
+  const paintCost = (text) => {
+    const cost = label([[['Upgrades', '#ffffff']], [[text, '#57f06a']]], 0.82, { font: '700 56px Fredoka, "Arial Black", sans-serif', outlineWidth: 7 })
+    cost.position.set(ux, 1.2, uz)
+    return cost
+  }
+  return { ...pad, paintGain, paintCost, upgrades: { x: ux, z: uz } }
 }
 
 // The stone board on the corner of your plot. The green button shows the next upgrade's price and
 // the level; the red ! floats over it while the player can pay.
 function upgradeSign(scene, b, x, z) {
-  const YAW = 0.25
+  const YAW = Math.PI - 0.25 // faces north, out of the plot toward the lobby
   b.at(x, 0, z, YAW)
-  b.box(2.7, 1.9, 0.3, 0, 0.95, 0, '#868e98')
-  b.box(0.36, 2.2, 0.4, -1.42, 1.1, 0, '#3f4650')
-  b.box(0.36, 2.2, 0.4, 1.42, 1.1, 0, '#3f4650')
+  b.box(5.4, 3.8, 0.6, 0, 1.9, 0, '#868e98')
+  b.box(0.72, 4.4, 0.8, -2.84, 2.2, 0, '#3f4650')
+  b.box(0.72, 4.4, 0.8, 2.84, 2.2, 0, '#3f4650')
   b.at()
   const painted = paintSign('Upgrade Base', { board: '#868e98', border: null, color: '#eef1f4', font: '700 56px Fredoka, sans-serif', w: 480, h: 96 })
   const tex = new CanvasTexture(painted.canvas)
@@ -123,24 +104,24 @@ function upgradeSign(scene, b, x, z) {
     tex.needsUpdate = true
   })
   const front = (mesh, y) => {
-    mesh.position.set(x + Math.sin(YAW) * 0.17, y, z + Math.cos(YAW) * 0.17)
+    mesh.position.set(x + Math.sin(YAW) * 0.34, y, z + Math.cos(YAW) * 0.34)
     mesh.rotation.y = YAW
     scene.add(mesh)
   }
-  front(new Mesh(new PlaneGeometry(2.3, 0.46), new MeshBasicMaterial({ map: tex })), 1.5)
+  front(new Mesh(new PlaneGeometry(4.6, 0.92), new MeshBasicMaterial({ map: tex })), 3)
 
   const canvas = document.createElement('canvas')
   canvas.width = 384
   canvas.height = 192
   const button = new CanvasTexture(canvas)
   button.colorSpace = SRGBColorSpace
-  front(new Mesh(new PlaneGeometry(2, 1), new MeshBasicMaterial({ map: button })), 0.74)
+  front(new Mesh(new PlaneGeometry(4, 2), new MeshBasicMaterial({ map: button })), 1.48)
 
-  const mark = label([[['!', '#ff2a2a']]], 2.6, { font: '800 200px Fredoka, "Arial Black", sans-serif', outline: '#ffffff', outlineWidth: 10 })
-  mark.position.set(x, 3.9, z)
+  const mark = label([[['!', '#ff2a2a']]], 5.2, { font: '800 200px Fredoka, "Arial Black", sans-serif', outline: '#ffffff', outlineWidth: 10 })
+  mark.position.set(x, 9.2, z)
   mark.visible = false
   scene.add(mark)
-  solidBox(1.6, 1, 0.2, x, 1, z, YAW)
+  solidBox(3.2, 2, 0.4, x, 2, z, YAW)
   let shown = null
   const show = () => {
     if (!shown) return
@@ -166,13 +147,13 @@ function ownerSign(scene, base) {
   const portrait = new Sprite(new SpriteMaterial({ map: portraitTexture(base.portrait), transparent: true, depthWrite: false, fog: false }))
   portrait.scale.set(size, size, 1)
   portrait.position.set(base.x, y + size * 0.72, z)
-  const paint = (rate) => {
-    const text = label([[[base.name, base.nameColor]], [[rate, '#57f06a']]], size * 0.72, { font: '700 56px Fredoka, "Arial Black", sans-serif', outline: '#1a1a1a', outlineWidth: 8 })
+  const paint = (rate, name = base.name) => {
+    const text = label([[[name, base.nameColor]], [[rate, '#57f06a']]], size * 0.72, { font: '700 56px Fredoka, "Arial Black", sans-serif', outline: '#1a1a1a', outlineWidth: 8 })
     text.position.set(base.x, y - size * 0.2, z)
     return text
   }
   scene.add(portrait)
-  return paint
+  return { paint, portrait }
 }
 
 // Swaps a label for a freshly painted one.
@@ -190,12 +171,6 @@ function portraitTexture(look) {
   const t = new CanvasTexture(paintPortrait(look))
   t.colorSpace = SRGBColorSpace
   return t
-}
-
-function petLabel(scene, name, rarity, rate, x, y, z) {
-  const sign = label([[[name, '#ffffff']], [[rarity, RARITY[rarity] ?? '#ffffff']], [[rate, '#57f06a']]], 0.84, { font: '700 40px Fredoka, "Arial Black", sans-serif', outlineWidth: 5, pad: 8 })
-  sign.position.set(x, y, z)
-  scene.add(sign)
 }
 
 // A blocky bystander. crates > 0: lifting a stack of gold boxes; else a stone ball.
@@ -231,14 +206,16 @@ function bystander(scene, b, particles, npc) {
   return { load, base: 2.7, phase: x, range: crates ? 0.42 : 0.3 }
 }
 
-export function buildBases(scene, b, particles) {
+export function buildBases(scene, b, particles, seat) {
   const hw = BASES.width / 2
   const { front: F, back: B, gateWidth } = BASES
   let mine = null // the player's own signs, which change
   let sign = null // the player's Upgrade Base sign
   let pad = null // the player's own training pad
   let lifting = false
-  for (const base of BASES.list) {
+  const others = [] // { seat, plot }: the plots another player may hold
+  BASES.list.forEach((plot, i) => {
+    const base = i === seat ? { ...plot, ...BASES.owner, owner: true } : { ...plot, ...BASES.empty }
     const cx = base.x
     b.at()
     fenceRun(b, base.fence, cx - hw, F, cx - gateWidth / 2, F)
@@ -247,33 +224,28 @@ export function buildBases(scene, b, particles) {
     fenceRun(b, base.fence, cx + hw, F, cx + hw, B)
     fenceRun(b, base.fence, cx - hw, B, cx + hw, B)
 
-    for (const [kind, px, pz, scale, yaw, name, rarity, rate] of base.pets) {
-      const x = cx + px
-      const z = F + pz
-      const pet = petModel(kind)
-      b.at()
-      b.add(pet.geometry, x, 0, z, Math.PI + yaw, scale)
-      if (scale >= 1) solidPole(0.9 * scale, 2.5, x, z)
-      petLabel(scene, name, rarity, rate, x, pet.height * scale + 0.3, z)
-      if (AURA[kind]) particles.add({ count: 12, pos: [x, pet.height * scale * 0.5, z], spread: [1.1 * scale, pet.height * scale * 0.5, 1.1 * scale], vel: [0, 0.6, 0], jitter: [0.1, 0.3, 0.1], life: 1.4, size: 0.16, color: AURA[kind], boost: 1.4 })
+    const seatPad = trainingPad(scene, b, base, cx)
+    const { paint: paintRate, portrait } = ownerSign(scene, base)
+    if (!base.owner) {
+      others.push({ seat: i, plot: createRemoteBase({ scene, base, pad: seatPad, paint: paintRate, portrait }) })
+      return
     }
-    pad = trainingPad(scene, b, particles, base, cx) ?? pad
-    const paintRate = ownerSign(scene, base)
-    if (base.sign) sign = upgradeSign(scene, b, cx + base.sign.x, F + base.sign.z)
+    pad = seatPad
+    sign = upgradeSign(scene, b, cx + base.sign.x, F + base.sign.z)
     const paintMulti = (value) => {
-      const cash = label([[['CASH MULTI:', '#ffffff']], [[value, '#57f06a']]], 1, { font: '700 52px Fredoka, "Arial Black", sans-serif', outlineWidth: 6 })
-      // Over the sign on the player's plot, on the corner post elsewhere.
-      if (base.sign) cash.position.set(cx + base.sign.x, 3.2, F + base.sign.z)
-      else cash.position.set(cx + hw - 0.4, 2.4, F - 0.4)
+      const cash = label([[['CASH MULTI:', '#ffffff']], [[value, '#57f06a']]], 2, { font: '700 52px Fredoka, "Arial Black", sans-serif', outlineWidth: 6 })
+      cash.position.set(cx + base.sign.x, 6.2, F + base.sign.z) // over the sign
       return cash
     }
     const rateSign = swap(scene, null, paintRate(base.rate))
     const multiSign = swap(scene, null, paintMulti(base.cash))
-    if (base.owner) mine = { paintRate, paintMulti, rateSign, multiSign, rate: base.rate, multi: base.cash }
-  }
+    mine = { paintRate, paintMulti, rateSign, multiSign, rate: base.rate, multi: base.cash }
+  })
   const crowd = BASES.npcs.map((npc) => bystander(scene, b, particles, npc))
+  let last = 0
   return {
     pad,
+    x: BASES.list[seat].x, // the local player's plot centre
     upgrades: pad.upgrades,
     sign,
     // The Upgrade Base sign: { cost, level } as text, and whether the player can pay.
@@ -308,8 +280,15 @@ export function buildBases(scene, b, particles) {
       }
     },
     update(elapsed) {
+      const dt = Math.min(0.1, elapsed - last)
+      last = elapsed
       for (const c of crowd) c.load.position.y = c.base + Math.abs(Math.sin(elapsed * 1.6 + c.phase)) * c.range
       sign.mark.position.y = 3.9 + Math.sin(elapsed * 3) * 0.14
+      // The other seats: whoever the room has put there.
+      const roster = net.roster()
+      const held = new Map()
+      roster?.players.forEach((p, id) => id !== roster.self && p.seat >= 0 && held.set(p.seat, p))
+      for (const o of others) o.plot.show(held.get(o.seat), dt, elapsed)
     },
   }
 }

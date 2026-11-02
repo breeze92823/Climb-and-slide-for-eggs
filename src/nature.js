@@ -10,24 +10,27 @@ const { halfWidth: W, south: S } = LOBBY
 
 export function createNature() {
   const leaves = new Blocks()
+  const tinted = new Blocks() // a climb zone's foliage: grey leaves, so any colour shows
   const wood = new Blocks()
 
   // A chunky tier: a core box with its corners stepped in.
-  const tier = (w, h, x, y, z, detail) => {
-    leaves.box(w * 0.82, h, w * 0.82, x, y, z, '#ffffff')
+  const tier = (w, h, x, y, z, detail, color = '#ffffff') => {
+    const target = color === '#ffffff' ? leaves : tinted
+    target.box(w * 0.82, h, w * 0.82, x, y, z, color)
     if (!detail) return
-    leaves.box(w, h * 0.72, w * 0.72, x, y, z, '#ffffff')
-    leaves.box(w * 0.72, h * 0.72, w, x, y, z, '#ffffff')
+    target.box(w, h * 0.72, w * 0.72, x, y, z, color)
+    target.box(w * 0.72, h * 0.72, w, x, y, z, color)
   }
 
-  function pine(x, y, z, k = 1, detail = false) {
-    wood.box(0.6 * k, 1.5 * k, 0.6 * k, x, y + 0.75 * k, z, NATURE.trunk)
-    wood.box(1.5 * k, 0.32 * k, 0.5 * k, x, y + 0.16 * k, z, NATURE.trunk)
-    wood.box(0.5 * k, 0.32 * k, 1.5 * k, x, y + 0.16 * k, z, NATURE.trunk)
+  // leaf tints the foliage, trunk replaces the bark (a climb zone's trees).
+  function pine(x, y, z, k = 1, detail = false, leaf = '#ffffff', trunk = NATURE.trunk) {
+    wood.box(0.6 * k, 1.5 * k, 0.6 * k, x, y + 0.75 * k, z, trunk)
+    wood.box(1.5 * k, 0.32 * k, 0.5 * k, x, y + 0.16 * k, z, trunk)
+    wood.box(0.5 * k, 0.32 * k, 1.5 * k, x, y + 0.16 * k, z, trunk)
     const tiers = [[4.4, 1.5], [3.7, 1.4], [2.9, 1.3], [2.1, 1.1], [1.3, 0.8]]
     let h = 1.4 * k
     for (const [w, t] of tiers) {
-      tier(w * k, t * k, x, y + h + (t * k) / 2, z, detail)
+      tier(w * k, t * k, x, y + h + (t * k) / 2, z, detail, leaf)
       h += t * k * 0.92
     }
   }
@@ -123,8 +126,11 @@ export function createNature() {
       leafTex.magFilter = NearestFilter
       const leafMesh = leaves.mesh(new MeshStandardMaterial({ map: leafTex, vertexColors: true, roughness: 0.75 }), false)
       const woodMesh = wood.mesh(new MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), false)
-      leafMesh.frustumCulled = woodMesh.frustumCulled = false
-      scene.add(leafMesh, woodMesh)
+      const tintTex = toTexture(paintLeaves({ rim: '#ffffff', base: '#f6f6f6', dark: '#e4e4e4', deep: '#cccccc' }), { srgb: true, anisotropy: 4 })
+      tintTex.magFilter = NearestFilter
+      const tintMesh = tinted.mesh(new MeshStandardMaterial({ map: tintTex, vertexColors: true, roughness: 0.75 }), false)
+      leafMesh.frustumCulled = woodMesh.frustumCulled = tintMesh.frustumCulled = false
+      scene.add(leafMesh, woodMesh, tintMesh)
     },
   }
 }

@@ -1,4 +1,4 @@
-// The Index window: every pet in every variant tab, one row per egg. Pets not found yet are
+// The Index window: one row per egg, showing the open tab's pets. Pets not found yet are
 // black silhouettes under ???; an egg stays a silhouette until the player has reached it.
 // The footer fills towards the next completed egg of the open tab. Layout and colours are in
 // indexWindow.css (measured off the reference), collection state in petIndex.js.
@@ -76,7 +76,7 @@ export function createIndexWindow() {
     const cards = egg.pets.map((pet) => {
       const card = document.createElement('div')
       card.className = 'ix-card'
-      const pic = picture(pet.id, () => isPetFound(tab, pet.id))
+      const pic = picture(pet.id, () => isPetFound(pet.tab, pet.id))
       const bar = document.createElement('div')
       bar.className = 'ix-card-bar'
       const name = document.createElement('span')
@@ -140,7 +140,7 @@ export function createIndexWindow() {
     tipCard = null
   }
   function showTip(card, x, y) {
-    if (!isPetFound(tab, card.pet.id)) return hideTip()
+    if (!isPetFound(card.pet.tab, card.pet.id)) return hideTip()
     tipCard = card
     tipName.textContent = card.pet.name
     tipCash.textContent = money(card.pet.cash)
@@ -184,7 +184,8 @@ export function createIndexWindow() {
       r.eggName.textContent = seen ? r.egg.name : '???'
       paint(r.egg.id)
       for (const c of r.cards) {
-        const known = isPetFound(tab, c.pet.id)
+        c.card.hidden = c.pet.tab !== tab
+        const known = isPetFound(c.pet.tab, c.pet.id)
         c.name.textContent = known ? c.pet.name : '???'
         c.card.classList.toggle('known', known)
         paint(c.pet.id)

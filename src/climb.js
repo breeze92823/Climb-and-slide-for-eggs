@@ -1,5 +1,5 @@
 import { BufferGeometry, CanvasTexture, Color, Float32BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, RepeatWrapping, SRGBColorSpace, Vector3 } from 'three'
-import { CLIMB, climbY, LOBBY, RUN } from './config.js'
+import { CLIMB, climbY, LOBBY, RUN, ZONES, zoneAt } from './config.js'
 import { label, fontReady, std } from './propkit.js'
 import { RAPIER, addFixed } from './physics.js'
 import { paintSign, paintSlideWater, paintStoneStuds, paintTurf, toTexture } from './textures.js'
@@ -42,8 +42,7 @@ function buildStairs(scene) {
   const col = []
   const uv = []
   const idx = []
-  const stone = new Color(colors.stone)
-  const stoneDark = new Color(colors.stoneDark)
+  const shades = new Map(ZONES.map((zone) => [zone, zone.stone.map((c) => new Color(c))]))
   const nose = new Color(colors.nose)
   const slopeNormal = [0, Math.cos(pitch), Math.sin(pitch)]
   const quad = (corners, normal, shade, uvs) => {
@@ -61,7 +60,7 @@ function buildStairs(scene) {
     const s1 = s0 + CLIMB.tread
     const top = (i + 0.5) * rise // the ramp collider runs through the middle of each step
     const low = top - rise
-    const band = Math.floor(i / 12) % 2 === 0 ? stone : stoneDark
+    const band = shades.get(zoneAt(s0 * RUN.metresPerS))[Math.floor(i / 12) % 2]
     // The first few steps have the pale nosing, the rest are plain studs. Both faces
     // shade as the slope: seen from the floor the risers are all that shows of the
     // upper stairs, and lit as vertical faces in the wall's shade they would go dark.
@@ -104,14 +103,18 @@ export function buildClimb(scene, particles, tree) {
   // --- Hillside ---
   const turf = toTexture(paintTurf(), { srgb: true, anisotropy: 8 })
   const hillMat = (color) => new MeshStandardMaterial({ map: turf, color, roughness: 1 })
-  const left = hillMat(colors.bankLeft)
-  const right = hillMat(colors.bankRight)
   const edgeLift = (ridge - 4.2) * bank
-  scene.add(
-    strip(-ridge - 6, -4.2, 0.05, L, edgeLift * (1 + 6 / (ridge - 4.2)), 0, 9, left),
-    strip(4.2, ridge + 6, 0.05, L, 0, edgeLift * (1 + 6 / (ridge - 4.2)), 9, right),
-    strip(-4.2, 4.2, 0.05, L, -0.5, -0.5, 9, left), // under the stairs and slide
-  )
+  ZONES.forEach((zone, i) => {
+    const left = hillMat(zone.hill[0])
+    const right = hillMat(zone.hill[1])
+    const s0 = Math.max(0.05, zone.m / RUN.metresPerS)
+    const s1 = (ZONES[i + 1]?.m ?? Infinity) / RUN.metresPerS
+    scene.add(
+      strip(-ridge - 6, -4.2, s0, Math.min(s1, L), edgeLift * (1 + 6 / (ridge - 4.2)), 0, 9, left),
+      strip(4.2, ridge + 6, s0, Math.min(s1, L), 0, edgeLift * (1 + 6 / (ridge - 4.2)), 9, right),
+      strip(-4.2, 4.2, s0, Math.min(s1, L), -0.5, -0.5, 9, left), // under the stairs and slide
+    )
+  })
 
   // Pale slabs lying on the banks, and the darker gullies between them.
   const blocks = new Blocks()
@@ -148,6 +151,32 @@ export function buildClimb(scene, particles, tree) {
     blocks.add(stone, gx1 + 0.3, y(stoneS) + 1.1, zAt(stoneS), 0, 1)
   }
 
+  // --- What stands along the stairs: arches, speed pads, each zone's rocks and lamps ---
+  const [ax0, ax1] = stairs
+  const axc = (ax0 + ax1) / 2
+  for (let s = RUN.archStep / RUN.metresPerS; s < L - 8; s += RUN.archStep / RUN.metresPerS) {
+    const { arch } = zoneAt(s * RUN.metresPerS)
+    blocks.box(0.3, 3.9, 0.3, ax0 + 0.15, y(s) + 1.95, zAt(s), arch)
+    blocks.box(0.3, 3.9, 0.3, ax1 - 0.15, y(s) + 1.95, zAt(s), arch)
+    blocks.box(ax1 - ax0 + 0.5, 0.34, 0.42, axc, y(s) + 3.95, zAt(s), arch)
+  }
+  for (let s = RUN.padStep / RUN.metresPerS; s < L - 8; s += RUN.padStep / RUN.metresPerS) {
+    for (const k of [0, 1, 2]) {
+      const at = s + k * 0.8
+      blocks.box(1.6, 0.05, 0.3, axc - 0.62, y(at) + 0.08, zAt(at) + 0.24, '#fff27a', [pitch, 0.62, 0])
+      blocks.box(1.6, 0.05, 0.3, axc + 0.62, y(at) + 0.08, zAt(at) + 0.24, '#fff27a', [pitch, -0.62, 0])
+    }
+  }
+  for (let s = 12; s < L - 4; s += 13) {
+    const [rock, light] = zoneAt(s * RUN.metresPerS).prop
+    const r = Math.abs(Math.sin(s * 7.31) * 9731.17) % 1
+    const x = (r < 0.5 ? -1 : 1) * (5.2 + r * 2.4)
+    const py = hillY(x, zAt(s))
+    blocks.box(1.1 + r, 0.8 + r, 1.2, x, py + 0.4, zAt(s), rock)
+    blocks.box(0.22, 1.5, 0.22, x + 0.9, py + 0.75, zAt(s), rock)
+    blocks.box(0.42, 0.42, 0.42, x + 0.9, py + 1.65, zAt(s), light)
+  }
+
   // --- Summit block ---
   blocks.box(9.2, 1, 12, 0.05, y(L) - 0.45, zAt(L + 5.5), colors.lip)
 
@@ -173,7 +202,8 @@ export function buildClimb(scene, particles, tree) {
   pole.visible = false
   scene.add(pole)
   let best = null
-  const setBest = (metres) => {
+  // name: whose board it is; a new record calls this mid-run and the board goes up with them.
+  const setBest = (metres, name = '') => {
     if (best) {
       scene.remove(best)
       best.material.map.dispose()
@@ -182,7 +212,9 @@ export function buildClimb(scene, particles, tree) {
     const s = Math.min(metres / RUN.metresPerS, L)
     pole.visible = metres > 0
     pole.position.set(stairs[1] - 0.2, y(s), zAt(s))
-    best = label([[['YOUR BEST', '#ffc400']], [[`${Math.floor(metres)}m`, '#ffffff']]], 1, { bg: '#16161c', outline: '#000000', outlineWidth: 6, font: '800 56px Fredoka, "Arial Black", sans-serif', pad: 12 })
+    const rows = [[['YOUR BEST', '#ffc400']], [[`${Math.floor(metres)}m`, '#ffffff']]]
+    if (name) rows.splice(1, 0, [[name.slice(0, 16), '#8fe0ff']])
+    best = label(rows, 1, { bg: '#16161c', outline: '#000000', outlineWidth: 6, font: '800 56px Fredoka, "Arial Black", sans-serif', pad: 12 })
     best.visible = metres > 0
     best.position.set(stairs[1] - 0.2, y(s) + 2, zAt(s))
     scene.add(best)
@@ -215,14 +247,17 @@ export function buildClimb(scene, particles, tree) {
   particles.add({ count: 34, pos: [mx, y(18) + 0.5, zAt(18)], spread: [1.5, 8, 15], vel: [0, 0.2, 0.9], jitter: [0.2, 0.1, 0.3], life: 1.4, size: 0.13, color: '#ffffff' })
 
   // --- The forest: planted on the banks, clear of the climb ---
-  for (let s = 18; s < L; s += CLIMB.forestStep) {
+  for (let s = 18; s < L;) {
+    const step = s < CLIMB.nearLength ? CLIMB.forestStep : CLIMB.forestFarStep
+    s += step
     for (const side of [-1, 1]) {
-      for (let x = CLIMB.forestEdge; x < ridge + 2; x += CLIMB.forestStep) {
+      for (let x = CLIMB.forestEdge; x < ridge + 2; x += step) {
         const r = Math.abs(Math.sin(s * 12.9898 + x * 78.233 + side) * 43758.5453) % 1
         if (r < 0.1) continue
         const px = side * (x + r * 1.6)
         const pz = zAt(s + r * 1.8)
-        tree(px, hillY(px, pz) - 0.1, pz, 0.55 + r * 0.35)
+        const zone = zoneAt(s * RUN.metresPerS)
+        tree(px, hillY(px, pz) - 0.1, pz, 0.55 + r * 0.35, false, zone.leaf, zone.trunk)
       }
     }
   }

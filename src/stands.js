@@ -20,6 +20,7 @@ import { fontReady, label, neon, solidBox, solidPole, std } from './propkit.js'
 import { paintAura, paintPawCoin, paintSign } from './textures.js'
 import { glowDecal, lightCurtain } from './fx.js'
 import { Blocks } from './voxel.js'
+import { buildLeaderboards } from './leaderboardBoards.js'
 import { coinHeap, jellyfish, petModel, portalHorn, trexEgg } from './pets.js'
 
 // The set pieces along the walls: the shop and sell stalls, the T-Rex eggs, the secret
@@ -35,6 +36,27 @@ const canvasTexture = (canvas) => {
   t.colorSpace = SRGBColorSpace
   return t
 }
+
+// A sign whose text changes (goals.js): a set(lines) that repaints only on a change.
+function liveSign(scene, height, opts, x, y, z) {
+  let sprite = null
+  let shown = ''
+  return (lines) => {
+    const key = JSON.stringify(lines)
+    if (key === shown) return
+    shown = key
+    if (sprite) {
+      scene.remove(sprite)
+      sprite.material.map.dispose()
+      sprite.material.dispose()
+    }
+    sprite = label(lines, height, opts)
+    sprite.position.set(x, y, z)
+    scene.add(sprite)
+  }
+}
+
+const signs = { badges: {} } // what goals.js repaints
 
 function signBoard(text, opts, w, h) {
   const painted = paintSign(text, opts)
@@ -155,11 +177,12 @@ function eggs(scene, b, particles, lights) {
   particles.add({ layer: 'smoke', count: 26, pos: [x, 1.3, LOBBY.north + 0.5], spread: [1.3, 0.6, 0.1], vel: [0, 0.8, 0], jitter: [0.2, 0.3, 0.05], life: 1.8, size: 0.7, color: '#a8541c', color2: '#6a3414' })
   particles.add({ count: 12, pos: [x, 1, LOBBY.north + 0.7], spread: [1.3, 0.6, 0.1], vel: [0, 1.2, 0], jitter: [0.2, 0.4, 0.1], life: 1.1, size: 0.14, color: '#ffaa40', boost: 1.3 })
 
-  const pass = label([[['Free Event Pass', '#ffb84a']], [['Complete Quests to Win Rewards', '#ffffff']]], 0.9, { font: '700 54px Fredoka, "Arial Black", sans-serif', outlineWidth: 7 })
-  pass.position.set(x + 1, 3.6, z + 0.2)
+  signs.pass = liveSign(scene, 0.9, { font: '700 54px Fredoka, "Arial Black", sans-serif', outlineWidth: 7 }, x + 1, 3.6, z + 0.2)
   const badge = label('1', 0.36, { bg: '#e0242c', outline: null, pad: 14, font: '700 64px Fredoka, sans-serif' })
   badge.position.set(x + 1, 4.3, z + 0.2)
-  scene.add(pass, badge)
+  badge.visible = false
+  signs.badges.pass = badge
+  scene.add(badge)
 
   lights.push(pointLight(x, 1.4, z + 1.2, '#ffc66a', 7, 8))
   return (elapsed) => {
@@ -232,17 +255,13 @@ function jellyfishStage(scene, particles, lights) {
   particles.add({ layer: 'glow', count: 26, pos: [x, 1.9, z - 0.6], spread: [1.2, 1.3, 0.1], vel: [0, 0.2, 0], jitter: [0.4, 0.3, 0.05], life: 1.5, size: 0.7, color: '#6a28d8', color2: '#a048e8', radial: 0.7 })
   particles.add({ count: 24, pos: [x, 0.3, z + 0.2], spread: [2.4, 0.1, 2.4], vel: [0, 1, 0], jitter: [0.1, 0.5, 0.1], life: 1.3, size: 0.17, color: '#fff27a', boost: 1.4 })
 
-  const sign = label(
-    [
-      [['S', '#ffc83a'], ['E', '#8cf04a'], ['C', '#3ae0a0'], ['R', '#40c0ff'], ['E', '#b080ff'], ['T', '#ff70d8']],
-      [['JELLYFISH', '#ffc66a']],
-      [['30 ', '#ffffff'], ['◉', '#3fe06a']],
-    ],
-    2.5,
-    { font: '800 64px Fredoka, "Arial Black", sans-serif', outline: '#2a1c10', outlineWidth: 8 },
-  )
-  sign.position.set(x, 4.9, z)
-  scene.add(sign)
+  const sign = liveSign(scene, 2.5, { font: '800 64px Fredoka, "Arial Black", sans-serif', outline: '#2a1c10', outlineWidth: 8 }, x, 4.9, z)
+  // The last line is the price.
+  signs.jellyfish = (price) => sign([
+    [['S', '#ffc83a'], ['E', '#8cf04a'], ['C', '#3ae0a0'], ['R', '#40c0ff'], ['E', '#b080ff'], ['T', '#ff70d8']],
+    [['JELLYFISH', '#ffc66a']],
+    [price],
+  ])
 
   lights.push(pointLight(x, 2, z - 0.9, '#a040ff', 7, 8))
   return (elapsed) => {
@@ -305,11 +324,15 @@ function portal(scene, b, particles, lights) {
 
   const title = label([[['Climb ', '#ffffff'], ['Green World', '#5cf07a']]], 0.5, { font: '700 64px Fredoka, "Arial Black", sans-serif' })
   title.position.set(x, 3.75, z + 1.2)
-  const lock = label([[['                ', '#ffffff']], [['Obtain ', '#ffffff'], ['T-Rex Egg', '#ff5454'], [' to Unlock', '#ffffff']]], 1.1, { bg: 'rgba(38,24,38,0.84)', font: '700 40px Fredoka, "Arial Black", sans-serif', outlineWidth: 5, pad: 14 })
-  lock.position.set(x, 2.9, z + 1.2)
+  const lock = liveSign(scene, 1.1, { bg: 'rgba(38,24,38,0.84)', font: '700 40px Fredoka, "Arial Black", sans-serif', outlineWidth: 5, pad: 14 }, x, 2.9, z + 1.2)
   const icon = eggIcon()
   icon.position.set(x, 3.08, z + 1.3)
-  scene.add(title, lock, icon)
+  scene.add(title, icon)
+  // The lock panel with its egg, or these lines once it is open.
+  signs.portal = (lines) => {
+    icon.visible = !lines
+    lock(lines ?? [[['                ', '#ffffff']], [['Obtain ', '#ffffff'], ['T-Rex Egg', '#ff5454'], [' to Unlock', '#ffffff']]])
+  }
 
   lights.push(pointLight(x, 3, z + 1.4, '#b050ff', 12, 9))
   return (elapsed) => {
@@ -362,9 +385,7 @@ function gifts(scene, b, particles, lights) {
   b.at()
   solidBox(2.2, 1.6, 3, x + 0.4, 1.6, z)
 
-  const free = label([[['FREE ITEM', '#58c8ff']]], 0.4, { font: '800 56px Fredoka, "Arial Black", sans-serif', outline: '#142a5a', outlineWidth: 8 })
-  free.position.set(x + 2.4, 0.95, z + 0.9)
-  scene.add(free)
+  signs.gift = liveSign(scene, 1.2, { font: '800 56px Fredoka, "Arial Black", sans-serif', outline: '#142a5a', outlineWidth: 8 }, x + 2.4, 2.6, z + 0.9)
   b.at(x + 2.4, 1.05, z + 0.9)
   b.box(0.42, 0.42, 0.34, 0, 0.3, 0, '#3e2a78')
   b.box(0.62, 0.1, 0.1, -0.44, 0.42, 0, '#2c1c58', [0, 0, 0.4])
@@ -406,11 +427,12 @@ function pawCoin(scene, particles) {
   halo.position.set(x, 0.1, z)
   scene.add(spin, pad, glow, halo)
   particles.add({ count: 18, pos: [x, 1.4, z], spread: [0.9, 1, 0.9], vel: [0, 0.4, 0], jitter: [0.2, 0.2, 0.2], life: 1.5, size: 0.17, color: '#a8e4ff', boost: 1.3 })
-  const sign = label([[['FREE ANIMAL BADGE', '#ffd24a']], [['Verify for Rewards', '#ffffff']]], 0.75, { font: '700 56px Fredoka, "Arial Black", sans-serif', outlineWidth: 7 })
-  sign.position.set(x, 3.1, z)
+  signs.paw = liveSign(scene, 0.75, { font: '700 56px Fredoka, "Arial Black", sans-serif', outlineWidth: 7 }, x, 3.1, z)
   const badge = label('!', 0.34, { bg: '#e0242c', outline: null, pad: 14, font: '700 64px Fredoka, sans-serif' })
   badge.position.set(x, 3.6, z)
-  scene.add(sign, badge)
+  badge.visible = false
+  signs.badges.paw = badge
+  scene.add(badge)
   return (elapsed) => {
     spin.rotation.y = elapsed * 1.2
   }
@@ -433,9 +455,10 @@ export function buildStands(scene, b, particles) {
   shop(scene, b)
   sell(scene, b)
   boards(b)
-  const tickers = [eggs(scene, b, particles, lights), jellyfishStage(scene, particles, lights), portal(scene, b, particles, lights), gifts(scene, b, particles, lights), pawCoin(scene, particles)]
+  const tickers = [buildLeaderboards(scene, STANDS.panels).update, eggs(scene, b, particles, lights), jellyfishStage(scene, particles, lights), portal(scene, b, particles, lights), gifts(scene, b, particles, lights), pawCoin(scene, particles)]
   scene.add(...lights)
   return {
+    signs,
     update(elapsed) {
       for (const tick of tickers) tick(elapsed)
     },

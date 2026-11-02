@@ -1,5 +1,6 @@
 import { Box3, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three'
 import { BASE_UPGRADE, BASES, FARM, INDEX, PLAYTIME, RUN } from './config.js'
+import * as bloxity from './bloxity.js'
 import { getYaw } from './camera.js'
 import { eggShell } from './climbRun.js'
 import { formatCash } from './lobbyHud.js'
@@ -13,16 +14,17 @@ import * as saves from './saves.js'
 // "Ready!" until hatched; hatching rolls a pet of that egg. Only active pets wander the plot and
 // add their $/s to the base's rate, and the Upgrade Base sign buys room for more of them (the
 // Pets window picks which). Eggs and pets are saved through saves.js.
-const owner = BASES.list.find((b) => b.owner)
 const HW = BASES.width / 2 - FARM.margin
-const X0 = owner.x - HW
-const X1 = owner.x + HW
 const Z0 = BASES.front + FARM.margin
 const Z1 = BASES.back - FARM.margin
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v)
-const inside = (x, z) => x > owner.x - BASES.width / 2 && x < owner.x + BASES.width / 2 && z > BASES.front && z < BASES.back
 
 const eggOf = (id) => INDEX.eggs.find((e) => e.id === id)
+// One of the list, each as likely as weight(item, i).
+function pick(list, weight) {
+  let roll = Math.random() * list.reduce((sum, item, i) => sum + weight(item, i), 0)
+  return list.find((item, i) => (roll -= weight(item, i)) < 0) ?? list[0]
+}
 // Pets from an egg, or the Playtime Rewards' own, which the Index doesn't list.
 export const petInfo = (id) => {
   const egg = INDEX.eggs.find((e) => e.pets.some((p) => p.id === id))
@@ -46,6 +48,10 @@ function load() {
 // rebirth: the Rebirth window, which multiplies the rate.
 export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
   const { bursts, bases } = world
+  const X0 = bases.x - HW // the player's plot, whichever seat the room gave them
+  const X1 = bases.x + HW
+  const inside = (x, z) => x > bases.x - BASES.width / 2 && x < bases.x + BASES.width / 2 && z > BASES.front && z < BASES.back
+  let rateText = ''
   const save = load()
   const store = () => {
     try {
@@ -59,14 +65,18 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
   const slots = () => BASE_UPGRADE.slots + save.level * BASE_UPGRADE.slotsPerLevel
   const best = () => [...save.pets].sort(byCash).slice(0, slots())
   const listeners = new Set()
+  const hatchListeners = new Set()
+  let goalMulti = () => 1 // the portal's (goals.js)
 
   // --- Rate ------------------------------------------------------------------------------
   function refreshRate() {
-    const multi = cashMulti() * rebirth.multi()
+    const multi = cashMulti() * rebirth.multi() * goalMulti()
     const animals = cashSum(active()) * multi
     const rate = FARM.income * multi + animals
     hud.setRate(rate, animals)
-    bases.setOwner({ rate: `${formatCash(rate)}$/s`, multi: `x${multi.toFixed(2)}` })
+    bloxity.submitScore('earnings', rate)
+    rateText = `${formatCash(rate)}$/s`
+    bases.setOwner({ rate: rateText, multi: `x${multi.toFixed(2)}` })
     hud.setPetsReady(cashSum(best()) > cashSum(active()))
   }
 
@@ -138,7 +148,8 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
     save.pets.push(entry)
     if (entry.on) addPet(entry, x, z, 1)
     else hud.toast('Pets full! Upgrade your base for more')
-    if (petInfo(id).indexed) discoverPet('normal', id) // also marks the egg in the Index
+    const info = petInfo(id)
+    if (info.indexed) discoverPet(info.tab, id) // also marks the egg in the Index
     changed()
   }
 
@@ -196,15 +207,15 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
   function finishHatch(egg) {
     const { mesh, tier } = egg
     const p = mesh.position
-    const list = eggOf(tier.egg).pets
-    let roll = Math.random() * list.reduce((sum, _, i) => sum + (FARM.weights[i] ?? 0), 0)
-    const pet = list.find((_, i) => (roll -= FARM.weights[i] ?? 0) < 0) ?? list[0]
+    const tab = pick(INDEX.tabs, (t) => FARM.tabChance[t.id])
+    const pet = pick(eggOf(tier.egg).pets.filter((p) => p.tab === tab.id), (_, i) => FARM.weights[i] ?? 0)
     bursts.emit({ layer: 'chunk', count: 40, pos: [p.x, 1.2, p.z], spread: [0.9, 1, 0.9], radial: 4, vel: [0, 3, 0], jitter: [2, 2, 2], gravity: -16, life: 0.8, size: 0.3, color: tier.shell[0], color2: tier.shell[2] })
     bursts.emit({ layer: 'glow', count: 12, pos: [p.x, 1.3, p.z], spread: [1, 1, 1], radial: 2, life: 0.7, size: 1.8, color: tier.color })
     bursts.emit({ count: 26, pos: [p.x, 1.4, p.z], spread: [1.1, 1.1, 1.1], radial: 3, life: 0.9, size: 0.34, color: '#ffffff', color2: tier.color })
     removeEgg(egg)
     grant(pet.id, p.x, p.z)
     hud.setEggsReady(eggs.length > 0)
+    for (const fn of hatchListeners) fn()
   }
 
   // --- Ghost -----------------------------------------------------------------------------
@@ -252,6 +263,15 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
     hud.prompt(at.z < 1 ? { x: (at.x + 1) / 2, y: (1 - at.y) / 2, text, ...extra } : null, 'farm')
   }
 
+  const nearBoard = (p) => Math.hypot(bases.sign.x - p.x, bases.sign.z - p.z) < BASE_UPGRADE.reach
+  function signPrompt() {
+    const { sign } = bases
+    nearSign = true
+    const ready = !maxed() && hud.cash() >= upgradeCost()
+    const text = maxed() ? 'Fully upgraded' : ready ? 'Upgrade' : `Need $${formatCash(upgradeCost())}`
+    showPrompt(sign.x, 5, sign.z, text, ready ? { hold: true, act: upgrade } : { act: () => {} })
+  }
+
   function action() {
     if (nearEgg) hatch(nearEgg)
     else if (nearSign) upgrade()
@@ -273,10 +293,18 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
     // The Pets window: every pet, active ones first and the best first.
     list: () => [...save.pets].sort((a, b) => b.on - a.on || byCash(a, b)),
     activeCount: () => active().length,
+    // What the other players see of this plot (net.sendBase): the active pets and the rate.
+    summary: () => ({ p: active().map((p) => p.id), r: rateText }),
     slots,
     setActive,
     equipBest,
     onChange: (fn) => listeners.add(fn),
+    onHatch: (fn) => hatchListeners.add(fn),
+    setMulti(fn) {
+      goalMulti = fn
+      refreshRate()
+    },
+    refresh: refreshRate,
     // A pet from a reward: it lands anywhere on the plot.
     give: (id) => grant(id, ...somewhere()),
     upgrade,
@@ -310,7 +338,8 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
       nearSign = false
       canPlace = false
       ghost.visible = false
-      if (!home) return hud.prompt(null, 'farm')
+      // The board faces out of the plot, so it works from outside the fence too.
+      if (!home) return idle && nearBoard(p) ? signPrompt() : hud.prompt(null, 'farm')
 
       let best = FARM.hatchReach
       for (const egg of eggs) {
@@ -321,14 +350,10 @@ export function createBaseFarm({ scene, camera, world, run, hud, rebirth }) {
         }
       }
       const tierIdx = run.heldTier()
-      const { sign } = bases
       if (nearEgg) {
         showPrompt(nearEgg.entry.x, 1.4, nearEgg.entry.z, 'Hatch')
-      } else if (Math.hypot(sign.x - p.x, sign.z - p.z) < BASE_UPGRADE.reach) {
-        nearSign = true
-        const ready = !maxed() && hud.cash() >= upgradeCost()
-        const text = maxed() ? 'Fully upgraded' : ready ? 'Upgrade' : `Need $${formatCash(upgradeCost())}`
-        showPrompt(sign.x, 2.5, sign.z, text, ready ? { hold: true, act: upgrade } : { act: () => {} })
+      } else if (nearBoard(p)) {
+        signPrompt()
       } else if (tierIdx !== null) {
         const yaw = getYaw()
         const x = clamp(p.x - Math.sin(yaw) * FARM.placeReach, X0, X1)

@@ -5,13 +5,15 @@ import { player } from './player.js'
 import { screenPoint } from './stallPrompts.js'
 import { createWindow } from './uiWindow.js'
 import { renderWeights, weightGeometry } from './weightArt.js'
+import { spendCoins } from './coins.js'
 import * as saves from './saves.js'
 
 // The Treadmill Shop, opened by holding E on the Upgrades pad. The player owns weights, one is
 // equipped: it pays its strength per rep (training.js) and is the one on the pad and lifted.
 // Saved through saves.js. Robux prices have no system yet.
 const { list, saveKey } = WEIGHTS
-export const COIN = '<svg viewBox="0 0 24 24"><path d="M12 2 21 7v10l-9 5-9-5V7Z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.6" fill="none" stroke="#fff" stroke-width="2.6"/></svg>'
+import { COIN } from './coinIcon.js'
+export { COIN }
 const CHECK = '<svg viewBox="0 0 24 24"><path d="M3 13 9.5 20 22 5" fill="none" stroke="#15151b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13 9.5 20 22 5" fill="none" stroke="#35e04a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 const PAD = { x: 1.35, z: 0.95 } // half size of the pad's trigger
 
@@ -84,7 +86,7 @@ export function createWeightShop({ hud, bases, run, camera }) {
       button(row, 'ws-equip', 'Equip', () => equip(w))
     } else {
       button(row, 'ws-cash', `${formatCash(w.cash)}$`, (b) => buy(w, b))
-      button(row, 'ws-coin', `${COIN}<span>${w.coin}</span>`, () => hud.comingSoon('Robux'))
+      button(row, 'ws-coin', `${COIN}<span>${w.coin}</span>`, (b) => buyCoins(w, b))
     }
   }
 
@@ -99,6 +101,18 @@ export function createWeightShop({ hud, bases, run, camera }) {
     save.equipped = w.id
     store()
     refresh()
+  }
+
+  const short = (b) => {
+    b.classList.remove('ws-short')
+    void b.offsetWidth
+    b.classList.add('ws-short')
+  }
+
+  function buyCoins(w, b) {
+    if (!spendCoins(w.coin)) return void short(b)
+    save.owned.push(w.id)
+    equip(w)
   }
 
   function buy(w, b) {

@@ -24,7 +24,7 @@ export const REMOTE = {
   interpDelay: 0.15, // s remote players are drawn behind the newest update, so motion is smooth
   snapDistance: 6, // m: a bigger jump between updates (teleport, respawn) is not interpolated
   reselectEvery: 0.5, // s between choosing which players are drawn (nearest first)
-  labelRange: 45, // m: name tags fade out beyond this
+  labelRange: 150, // m: name tags fade out beyond this (the arena is ~100 m across, so every player is named)
   labelHeight: 0.55, // m above the head
   bubbleHeight: 3.1, // m above the feet: over the name tag
   bubbleSeconds: 4, // Legion.SDK.chat.bubbleSeconds
@@ -41,7 +41,18 @@ export const LEADERBOARDS = [
   { id: 'best-climb', label: 'Best Climb', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
   { id: 'rebirths', label: 'Rebirths', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
   { id: 'strength', label: 'Strength', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
+  { id: 'earnings', label: 'Top Earners', order: 'desc', mode: 'best', format: 'compact', reset: 'none' }, // cash per second
 ]
+// The two boards on the east wall (STANDS.panels, in that order): global top 5 of these Boxity boards.
+export const LEADERBOARD_BOARDS = [
+  { id: 'strength', title: 'Top Strength', suffix: '' },
+  { id: 'earnings', title: 'Top Earners', suffix: '$/s' },
+]
+// Shown instead of the Boxity boards when there is no SDK (VITE_DEV_MODE), so the boards can be seen.
+export const LEADERBOARD_DEV_ROWS = {
+  strength: [['Vellfire63', 1.15e21], ['Nodygo9', 416.3e18], ['Eskimo85', 103.2e18], ['jhrt1265', 96.5e18], ['rickert3214', 32.7e18]],
+  earnings: [['MaBruder', 14.2e15], ['Oriassis1', 12.8e15], ['Eskimo85', 12.8e15], ['kaksonblack90', 12.4e15], ['kuynde', 11e15]],
+}
 
 // --- World (metres: +X east, +Z south, +Y up) -------------------------------
 export const GROUND_Y = 0
@@ -77,7 +88,10 @@ export const LOBBY = {
 // The climb (climb.js): stairs and a water slide side by side, running north up a
 // forested ridge. `s` is metres north of the wall.
 export const CLIMB = {
-  length: 240,
+  length: 2400,
+  nearLength: 240, // m of the climb seen from the arena, at full terrain and forest detail
+  farCell: 28, // m per terrace column along the ridge past that
+  forestFarStep: 12, // m between hillside trees past that
   slope: 0.47, // rise per metre north
   water: [-3.7, -0.1], // x range of the slide
   stairs: [0.1, 3.7], // x range of the stairs
@@ -108,13 +122,26 @@ export const CLIMB = {
 }
 export const climbY = (z) => (LOBBY.north - z) * CLIMB.slope
 
-// A climb run (climbRun.js, climbHud.js). Strength is spent 1 per metre, so it sets how
-// far a run reaches and tapping only gets there sooner. Metres are the HUD's numbers.
+// A climb run (climbRun.js, climbHud.js). Strength sets how far a run reaches, and tapping only
+// gets there sooner. Metres are the HUD's numbers.
 export const RUN = {
   metresPerS: 1.5, // HUD metres per metre of `s`, so the checkpoints read as in the reference
-  strength: 56, // starting strength
-  strengthScale: 1.65, // metres of climb per point: the reference's 56 strength fills a bar of 92
-  strengthPerRun: 2, // strength gained each time the player lands
+  strength: 100, // starting strength
+  // [strength, metres] a run reaches: straight up to the first point, then each point of strength
+  // buys less the higher it goes (log between points). Tuned so the best play found in a simulation
+  // of the shops, rebirths and pets takes about 6.5 h to the summit: weights outgrow any straight
+  // line, and the last two points sit past what the Rocket and Anvil dumbbells pay for quickly.
+  reach: [[150, 300], [2500, 700], [2.5e5, 1200], [2.5e7, 2000], [1.5e10, 3200], [1.5e11, 3600]],
+  strengthPerRun: 5, // strength gained each time the player lands
+  paceFrom: 900, // m a run can reach before it climbs and slides faster, so long runs stay short
+  paceMax: 3, // times the speeds at 3 times that reach
+  footLimit: 3, // m up the hillside a player can walk: the only way up is the stairs
+  coinStep: 30, // m between the coins on the stairs
+  coinPay: 0.15, // s of the base's rate each coin pays
+  coinsShown: 24, // coins drawn ahead of the player (one mesh, moved as they pass)
+  padStep: 120, // m between the speed pads, which give a full boost and no extra reach
+  archStep: 90, // m between the zone arches over the stairs
+  bestStep: 25, // m a new record moves the YOUR BEST board by, mid-run
   speed: 4.5, // m/s climbed with no tapping (the reference's bar drops 4.5/s)
   tapBoost: 1.6, // m/s added per tap
   maxBoost: 13, // m/s
@@ -138,8 +165,7 @@ export const RUN = {
   saveKey: 'climb-slide-run', // saves.js section (browser + backend)
   devBest: 88, // `npm run dev` with no save starts here, so the YOUR BEST marker shows
   // Checkpoints, lowest first. `m` is where the tier starts, `meter` its share of the rainbow
-  // meter, `egg` an INDEX egg, `shell` the colours of the egg held in 3D. The climb ends at
-  // 360 m, so only the first two can be reached until it is made longer.
+  // meter, `egg` an INDEX egg, `shell` the colours of the egg held in 3D. The climb ends at 3600 m.
   tiers: [
     { name: 'Common', m: 10, luck: 1, color: '#ffffff', meter: 75, bar: '#f2f2f2', egg: 'basicEgg', shell: ['#fbe8df', '#f6ddd2', '#ecd2c6'] },
     { name: 'Uncommon', m: 300, luck: 2, color: '#a6ff5c', meter: 115, bar: '#a4f2a8', egg: 'toxicEgg', shell: ['#93ee3c', '#7fdc34', '#6cc72c'] },
@@ -149,6 +175,45 @@ export const RUN = {
     { name: 'Mythic', m: 3200, luck: 32, color: '#ff5560', meter: 50, bar: '#e8505a', egg: 'lavaEgg', shell: ['#ff8a1f', '#d8541c', '#3a2a30'] },
   ],
 }
+
+// The climb's zones, lowest first, one per tier from its `m`: the look of the stairs, hillside,
+// terraces and trees there (climb.js, terrain.js), and the sky and weather while the player is in
+// one (weather.js). The first keeps the arena's own sky, so `sky` and `weather` are null there.
+// `sky` overlays the mood's colours, `fog` is [near, far]. `weather`: `vel` is m/s, `size` m,
+// `streak` draws thin rain lines, `sway` m of drift either way, `glow` adds light (embers),
+// `lightning` s between flashes.
+export const ZONES = [
+  {
+    name: 'Sunny Meadow', m: 0, hill: ['#58c048', '#b6d8a8'], brick: null, stone: ['#a9bcc0', '#8fa3a8'], leaf: '#ffffff', trunk: '#7a3c20', arch: '#ff8f3a', prop: ['#8d9ba2', '#ffd23a'],
+    sky: null, weather: null,
+  },
+  {
+    name: 'Rainy Valley', m: 300, hill: ['#3f9a58', '#6fb28a'], brick: ['#3f9a58', '#368a4e', '#2a7040'], stone: ['#8796a3', '#6f7e8c'], leaf: '#7fd0a0', trunk: '#4e3226', arch: '#3f8fe0', prop: ['#5f7180', '#7fc8ff'],
+    sky: { zenith: '#6f8799', horizon: '#a3b3bd', cloud: '#7e8c97', sunColor: '#c8d4dc', hemiSky: '#a9bcc9', hemiGround: '#50685c', fog: [70, 420] },
+    weather: { count: 700, color: '#cfe6ff', size: 0.9, vel: [-1.5, -24, 1], streak: true, opacity: 0.65, sway: 0 },
+  },
+  {
+    name: 'Snowy Peaks', m: 700, hill: ['#f2f8fc', '#dfeaf4'], brick: ['#f4f9fd', '#e2ecf5', '#c4d6e6'], stone: ['#c9dbe6', '#aac3d3'], leaf: '#dcefff', trunk: '#5b4638', arch: '#58c4f4', prop: ['#ffffff', '#a8e4ff'],
+    sky: { zenith: '#a7cfe8', horizon: '#e4f0f7', cloud: '#ffffff', sunColor: '#fff4e6', hemiSky: '#dcecf7', hemiGround: '#b9cad6', fog: [60, 360] },
+    weather: { count: 600, color: '#ffffff', size: 0.2, vel: [1.2, -2.6, 0.6], streak: false, opacity: 0.95, sway: 1.1 },
+  },
+  {
+    name: 'Cloud Kingdom', m: 1200, hill: ['#f3d9ff', '#ffe3f4'], brick: ['#f6e2ff', '#ecd0fb', '#d5b0ef'], stone: ['#e6d9fb', '#cdbdf2'], leaf: '#ffb4e6', trunk: '#b78cc8', arch: '#d95ce8', prop: ['#ffffff', '#ffc8f0'],
+    sky: { zenith: '#a77cf0', horizon: '#ffd0ee', cloud: '#fff4fd', sunColor: '#ffe6f6', hemiSky: '#f0d8ff', hemiGround: '#dcb8e8', fog: [90, 480] },
+    weather: { count: 170, color: '#ffffff', size: 3.6, vel: [1.8, 0.1, 0.5], streak: false, opacity: 0.22, sway: 0.6 },
+  },
+  {
+    name: 'Thunder Dunes', m: 2000, hill: ['#e8b95a', '#f2cf7c'], brick: ['#ecbf60', '#dcac4e', '#b98a38'], stone: ['#d9b878', '#bd9a5c'], leaf: '#ffc53a', trunk: '#6a4a24', arch: '#ffc21f', prop: ['#b98a38', '#ffe45c'],
+    sky: { zenith: '#5b4a78', horizon: '#e8a860', cloud: '#7a5f72', sunColor: '#ffc98a', hemiSky: '#e0b88c', hemiGround: '#a07c44', fog: [55, 340] },
+    weather: { count: 700, color: '#f0c878', size: 0.16, vel: [13, -0.6, 2], streak: false, opacity: 0.8, sway: 0.8, lightning: 9 },
+  },
+  {
+    name: 'Lava Summit', m: 3200, hill: ['#4a3236', '#5e3a34'], brick: ['#4e3438', '#3e282c', '#ff5a1f'], stone: ['#5a4648', '#463436'], leaf: '#ff7a2e', trunk: '#20161a', arch: '#ff3b30', prop: ['#2c2024', '#ff8a1f'],
+    sky: { zenith: '#3a1020', horizon: '#ff6a2e', cloud: '#54282c', sunColor: '#ffb07a', hemiSky: '#c86a50', hemiGround: '#401c1c', fog: [50, 320] },
+    weather: { count: 450, color: '#ff8a2e', size: 0.18, vel: [0.6, 3.4, -0.3], streak: false, opacity: 1, sway: 1.3, glow: true },
+  },
+]
+export const zoneAt = (m) => ZONES.reduce((at, zone) => (m >= zone.m ? zone : at), ZONES[0])
 
 // Training on the player's pad (training.js). Stepping on it lifts the barbell until they stop.
 export const TRAIN = {
@@ -225,62 +290,21 @@ export const BASES = {
     red: { post: ['#c8141c', '#a00f16'], rail: '#d8161e' },
     wood: { post: ['#8d97a8', '#b8622e'], rail: '#d9733a' },
   },
+  // One plot per room seat, east to west (WorldRoom assigns the seat). A seat's occupant gives the
+  // plot its name, rate, pets and weight (net.js presence); an empty seat is `empty`.
   list: [
-    {
-      x: 43.5, fence: 'red', name: "xahahaha123's Base", rate: '87.7B$/s', nameColor: '#ffffff', signSize: 3.4, weight: 'dumbbell',
-      portrait: { ring: '#6fc4ff', bg: '#bfe6ff', skin: '#f6e7d8', hair: '#f4f4f4' },
-      cash: 'x212.40',
-      pets: [
-        ['polarEgg', 9.5, 5, 1.6, 0, 'Polarbear Egg', 'SPECIAL', 'Ready!'],
-        ['cyanDog', 4, 6, 1.5, 0.4, 'Frost Dog', 'SPECIAL', '$84.2M/s'],
-        ['whiteCat', 1, 3.5, 1.3, 2.4, 'Snow Cat', 'SPECIAL', '$12.1M/s'],
-        ['cyanDog', -2.5, 6.5, 1.2, -0.3, 'Frost Dog', 'Common', '$2.1K/s'],
-        ['duck', -5.5, 3.5, 1.5, 0.6, 'Gold Duck', 'CYBER', '$220M/s'],
-        ['whiteCat', -8.5, 6, 1.3, 1, 'Snow Cat', 'Common', '$1.4K/s'],
-      ],
-    },
-    {
-      x: 14.5, fence: 'checker', name: "Wiinnie728's Base", rate: '12.7T$/s', nameColor: '#ff3b3b', signSize: 4.2, weight: null,
-      portrait: { ring: '#ff3b3b', bg: '#ff8a8a', skin: '#f7f0e4', hair: '#b83a1e' },
-      cash: 'x1331.79',
-      pets: [
-        ['mammoth', -1.6, 7.4, 1.32, 1.05, 'Mammoth', 'LEGEND', '$1.2T/s'],
-        ['gorilla', 8.3, 4.4, 1, 0.6, 'Gorilla', 'CYBER', '$399.5B/s'],
-        ['gorilla', 4.3, 6.5, 1.15, -0.2, 'Gorilla', 'CYBER', '$399.5B/s'],
-        ['gorilla', -6, 4.8, 1.2, -0.4, 'Gorilla', 'CYBER', '$399.5B/s'],
-        ['gorilla', -9.2, 7, 1, 0.3, 'Gorilla', 'CYBER', '$399.5B/s'],
-        ['diamond', 1.4, 3.8, 1.1, 0.2, 'Diamond Seal', 'SPECIAL', '$199.8B/s'],
-        ['seal', 6.3, 2.7, 1.1, 2.2, 'Seal', 'SPECIAL', '$199.8B/s'],
-        ['dragon', -3.8, 2.6, 1.05, 0.2, 'Radioactive Dragon', 'SPECIAL', '$240B/s'],
-        ['shark', -8.7, 2.3, 1.1, 0.5, 'Whale', 'SPECIAL', '$241.3B/s'],
-        ['puffer', 9.3, 1.6, 1.1, 0.3, 'Radioactive Pufferfish', 'Titanium', '$47/s'],
-        ['minotaur', 2.8, 8.5, 1.1, 0.1, 'Minotaur', 'CYBER', '$399.5B/s'],
-      ],
-    },
-    {
-      x: -14.5, fence: 'wood', name: 'Your base', rate: '50$/s', nameColor: '#ff5cff', signSize: 3.8, weight: 'dumbbell', // rate and cash are live, from baseFarm.js
-      portrait: { ring: '#d070ff', bg: '#f0c8ff', skin: '#f2c79a', hair: '#6a4426', shades: true },
-      cash: 'x1.00',
-      owner: true,
-      sign: { x: 8.8, z: 0.7 },
-      pets: [],
-    },
-    {
-      x: -43.5, fence: 'wood', name: "Nics_2984's Base", rate: '21.2M$/s', nameColor: '#ffffff', signSize: 3, weight: 'crystal',
-      portrait: { ring: '#d8d8e8', bg: '#efe8f4', skin: '#fbe3dc', hair: '#ececf4' },
-      cash: 'x18.60',
-      pets: [
-        ['trex', 3, 5, 1.1, -1.1, 'T-Rex', 'SPECIAL', '$8.1M/s'],
-        ['trex', -4.5, 6, 1.1, -1.2, 'T-Rex', 'SPECIAL', '$8.1M/s'],
-        ['minotaur', 8.2, 7, 0.9, 0.3, 'Minotaur', 'Common', '$2.2M/s'],
-        ['puffer', -8, 3.5, 0.8, 0.2, 'Pufferfish', 'Common', '$1.5M/s'],
-        ['pigeon', 0, 2.5, 0.9, 0.5, 'Pigeon', 'Common', '$600K/s'],
-      ],
-    },
+    { x: 43.5, fence: 'red', nameColor: '#ffffff', signSize: 3.4, portrait: { ring: '#6fc4ff', bg: '#bfe6ff', skin: '#f6e7d8', hair: '#f4f4f4' } },
+    { x: 14.5, fence: 'checker', nameColor: '#ff3b3b', signSize: 4.2, portrait: { ring: '#ff3b3b', bg: '#ff8a8a', skin: '#f7f0e4', hair: '#b83a1e' } },
+    { x: -14.5, fence: 'wood', nameColor: '#ffffff', signSize: 3.8, portrait: { ring: '#d070ff', bg: '#f0c8ff', skin: '#f2c79a', hair: '#6a4426' } },
+    { x: -43.5, fence: 'wood', nameColor: '#ffffff', signSize: 3, portrait: { ring: '#d8d8e8', bg: '#efe8f4', skin: '#fbe3dc', hair: '#ececf4' } },
   ],
+  // The seat the local player has: rate and cash are live (baseFarm.js), the Upgrade Base sign is theirs.
+  owner: { name: 'Your base', rate: '50$/s', cash: 'x1.00', nameColor: '#ff5cff', signSize: 3.8, portrait: { ring: '#d070ff', bg: '#f0c8ff', skin: '#f2c79a', hair: '#6a4426', shades: true }, sign: { x: 7.4, z: 0.7 } },
+  empty: { name: 'Empty Base', rate: 'Waiting for a player', cash: '' },
+  ownerSeat: 2, // the seat used with no server (the original "Your base")
+  petBroadcast: 1.5, // s between presence updates of the plot (pets, weight, rate)
   // Other players standing around the arena.
   npcs: [
-    { name: 'Wiinnie728', x: 16.9, z: -1, yaw: 2.4, crates: 3 },
     { name: 'Mikey', x: 32, z: 8, yaw: 1.2, crates: 0 },
   ],
 }
@@ -301,7 +325,8 @@ export const FARM = {
   petScale: 0.11, // pet models are drawn in Index units
   petSpeed: 1.6, // m/s
   hatchTime: 0.9, // s an egg shakes before it opens
-  weights: [70, 25, 5], // chance of each of an egg's pets, commonest first
+  tabChance: { normal: 70, gold: 20, diamond: 7, radioactive: 2.5, rainbow: 0.5 }, // % a hatch comes from each Index tab
+  weights: [70, 25, 5], // chance of each of an egg's pets in that tab, commonest first
   maxEggs: 20, // eggs growing on the plot at once, the reference's (2/20)
   autoHatchCoin: 25, // the Auto Hatch Eggs price; no paid currency exists yet
 }
@@ -309,11 +334,11 @@ export const FARM = {
 // The Upgrade Base sign on the player's plot (baseFarm.js). Levels buy room for more active pets.
 export const BASE_UPGRADE = {
   cost: 5e6, // $ of the first level, the reference's number
-  growth: 2.5, // each level costs this much more
-  levels: 10, // the reference's 0/10
+  growth: 1.8, // each level costs this much more
+  levels: 25, // the reference has 10; more levels, so the growth is gentler
   slots: 10, // pets active before any upgrade, the reference's 5/10
   slotsPerLevel: 2,
-  reach: 3.6, // m from the sign the Upgrade prompt shows
+  reach: 5, // m from the sign the Upgrade prompt shows
 }
 
 // --- Rebirth (rebirthWindow.js) -----------------------------------------------------
@@ -339,7 +364,6 @@ export const PLAYTIME = {
     { id: 'sphinx', name: 'Sphinx', cash: 8000 },
     { id: 'capybara', name: 'Capybara', cash: 900 },
     { id: 'bear', name: 'Bear', cash: 15000 },
-    { id: 'whale', name: 'Whale', cash: 60000 },
   ],
   rewards: [
     { at: 30, cash: 60 },
@@ -357,6 +381,21 @@ export const PLAYTIME = {
   ],
 }
 
+// --- Lobby goals (goals.js) --------------------------------------------------------
+// The rewards on the lobby's set pieces, saved for good (unlike PLAYTIME). Time is what the game
+// loop ran, so a hidden tab or an ad break doesn't count. The Secret Egg's pets are won only here:
+// no climb tier holds that egg. All amounts are placeholders; together they ask for about 5 h.
+export const GOALS = {
+  saveKey: 'climb-slide-goals', // saves.js section (browser + backend)
+  saveEvery: 30, // s of play between saves of the clock
+  reach: 4.5, // m from a goal its prompt shows
+  gift: { every: 1200, cash: 600, coins: 5 }, // repeats: every 20 min of play, s of the rate + coins
+  paw: [{ eggs: 25, pet: 'capybara' }, { eggs: 75, pet: 'bear' }, { eggs: 150, pet: 'kraken' }], // total eggs hatched
+  jellyfish: { price: 500e6, pet: 'jellyfish' }, // bought once with cash
+  pass: { time: 18000, pet: 'trex' }, // 5 h of play for the T-Rex Egg, which opens the portal
+  portal: { multi: 2 }, // permanent cash multiplier, on the first entry
+}
+
 // --- Lobby HUD (lobbyHud.js) -----------------------------------------------------
 export const LOBBY_HUD = {
   holdTime: 2, // seconds E (or a press on the prompt) is held for Shop, Sell and Upgrade
@@ -366,6 +405,18 @@ export const LOBBY_HUD = {
   devCash: 3000000, // `npm run dev` with no save starts here, as in the reference
   eventEvery: 3600, // s of the Next Event countdown; nothing happens at zero yet
   play: { x: 1.9, z: -20 }, // where the Play tab stands the player, at the foot of the stairs
+}
+
+// --- Coins (coins.js, coinShop.js) -------------------------------------------
+// The paid currency, bought with cash. `cashPerCoin` is the base rate (100K cash = 39 coins);
+// bigger packs get an exponentially deeper discount that approaches `maxDiscount`, so the
+// shop only lists amounts and prices and a bigger pack is always cheaper per coin.
+export const COINS = {
+  saveKey: 'climb-slide-coins', // saves.js section (browser + backend)
+  cashPerCoin: 100e3 / 39,
+  maxDiscount: 0.7,
+  discountScale: 800, // coins; the discount is maxDiscount * (1 - e^(-amount / scale))
+  packs: [10, 25, 50, 100, 250, 500, 1000, 2500],
 }
 
 // --- Player modes (modes.js) -------------------------------------------------
@@ -615,40 +666,96 @@ export const ANIM = {
 }
 
 // --- Index window (petIndex.js, indexWindow.js) --------------------------------
-// One card per pet per tab: 20 pets x 5 tabs = the 100 in the title. `tier` is the card
-// colour of the egg's row (indexWindow.css), `cash` the pet's $/s, `bonus` the tab's +%$.
-// Everything past Basic Egg, Bat Egg, the Parrot, the Bat and Gold's +25% is a placeholder
-// until the real roster exists; models are in petArt.js under the same ids.
+// Every tab has its own 20 animals: 20 x 5 tabs = the 100 in the title, each a single card.
+// An egg holds a list per tab (as [id, name]) and `cash` its row's $/s, which a tab raises by
+// its `bonus` %. `tier` is the card colour of the egg's row (indexWindow.css). Everything past
+// Basic Egg, Bat Egg, the Parrot, the Bat and Gold's +25% is a placeholder; the animals named
+// in the reference's plots are all in here. Models are in petArt.js under the same ids.
+const INDEX_TABS = [
+  { id: 'normal', label: 'NORMAL', bonus: 0 },
+  { id: 'gold', label: 'GOLD', bonus: 25 },
+  { id: 'diamond', label: 'DIAMOND', bonus: 50 },
+  { id: 'radioactive', label: 'RADIOACTIVE', bonus: 100 },
+  { id: 'rainbow', label: 'RAINBOW', bonus: 200 },
+]
+const eggPets = (cash, lists) => INDEX_TABS.flatMap((t) => lists[t.id].map(([id, name], i) => ({ id, name, tab: t.id, cash: Math.round(cash[i] * (1 + t.bonus / 100)) })))
+
 export const INDEX = {
   perEggBonus: 10, // +% Cash Multi for each egg completed in a tab
   saveKey: 'climb-slide-index', // saves.js section (browser + backend)
-  tabs: [
-    { id: 'normal', label: 'NORMAL', bonus: 0 },
-    { id: 'gold', label: 'GOLD', bonus: 25 },
-    { id: 'diamond', label: 'DIAMOND', bonus: 50 },
-    { id: 'radioactive', label: 'RADIOACTIVE', bonus: 100 },
-    { id: 'rainbow', label: 'RAINBOW', bonus: 200 },
-  ],
+  tabs: INDEX_TABS,
   eggs: [
-    { id: 'basicEgg', name: 'Basic Egg', tier: 'white', pets: [{ id: 'chick', name: 'Chick', cash: 5 }, { id: 'parrot', name: 'Parrot', cash: 15 }, { id: 'penguin', name: 'Penguin', cash: 30 }] },
-    { id: 'batEgg', name: 'Bat Egg', tier: 'blue', pets: [{ id: 'bat', name: 'Bat', cash: 400 }, { id: 'owl', name: 'Owl', cash: 650 }, { id: 'raccoon', name: 'Raccoon', cash: 1000 }] },
-    { id: 'cloudEgg', name: 'Cloud Egg', tier: 'purple', pets: [{ id: 'sheep', name: 'Sheep', cash: 1600 }, { id: 'fox', name: 'Fox', cash: 2500 }, { id: 'pegasus', name: 'Pegasus', cash: 4000 }] },
-    { id: 'jungleEgg', name: 'Jungle Egg', tier: 'gold', pets: [{ id: 'monkey', name: 'Monkey', cash: 6500 }, { id: 'tiger', name: 'Tiger', cash: 10000 }, { id: 'toucan', name: 'Toucan', cash: 16000 }] },
-    { id: 'lavaEgg', name: 'Lava Egg', tier: 'red', pets: [{ id: 'imp', name: 'Imp', cash: 25000 }, { id: 'phoenix', name: 'Phoenix', cash: 40000 }, { id: 'dragon', name: 'Dragon', cash: 65000 }] },
-    { id: 'toxicEgg', name: 'Frog Egg', tier: 'green', pets: [{ id: 'frog', name: 'Frog', cash: 100 }, { id: 'slime', name: 'Slime', cash: 160 }, { id: 'alien', name: 'Alien', cash: 250 }] },
-    { id: 'secretEgg', name: 'Secret Egg', tier: 'rainbow', pets: [{ id: 'jellyfish', name: 'Jellyfish', cash: 75000 }, { id: 'kraken', name: 'Kraken', cash: 150000 }] },
-  ],
-  // `npm run dev` with no save starts here, so the window shows the reference's 10/100.
-  devSeed: {
-    eggs: ['basicEgg', 'batEgg'],
-    pets: {
-      normal: ['parrot'],
-      gold: ['bat'],
-      diamond: ['chick', 'parrot', 'penguin'],
-      radioactive: ['chick', 'parrot'],
-      rainbow: ['chick', 'owl', 'raccoon'],
+    {
+      id: 'basicEgg', name: 'Basic Egg', tier: 'white',
+      pets: eggPets([5, 15, 30], {
+        normal: [['chick', 'Chick'], ['parrot', 'Parrot'], ['penguin', 'Penguin']],
+        gold: [['goldDuck', 'Gold Duck'], ['pigeon', 'Pigeon'], ['hamster', 'Hamster']],
+        diamond: [['arcticHare', 'Arctic Hare'], ['snowCat', 'Snow Cat'], ['puffin', 'Puffin']],
+        radioactive: [['mutantRat', 'Mutant Rat'], ['cockroach', 'Cockroach'], ['glowWorm', 'Glow Worm']],
+        rainbow: [['butterfly', 'Butterfly'], ['ladybug', 'Ladybug'], ['bee', 'Bee']],
+      }),
     },
-  },
+    {
+      id: 'batEgg', name: 'Bat Egg', tier: 'blue',
+      pets: eggPets([400, 650, 1000], {
+        normal: [['bat', 'Bat'], ['owl', 'Owl'], ['raccoon', 'Raccoon']],
+        gold: [['squirrel', 'Squirrel'], ['hedgehog', 'Hedgehog'], ['beaver', 'Beaver']],
+        diamond: [['frostDog', 'Frost Dog'], ['snowyOwl', 'Snowy Owl'], ['arcticFox', 'Arctic Fox']],
+        radioactive: [['pufferfish', 'Pufferfish'], ['glowMoth', 'Glow Moth'], ['firefly', 'Firefly']],
+        rainbow: [['peacock', 'Peacock'], ['chameleon', 'Chameleon'], ['hummingbird', 'Hummingbird']],
+      }),
+    },
+    {
+      id: 'cloudEgg', name: 'Cloud Egg', tier: 'purple',
+      pets: eggPets([1600, 2500, 4000], {
+        normal: [['sheep', 'Sheep'], ['fox', 'Fox'], ['pegasus', 'Pegasus']],
+        gold: [['cow', 'Cow'], ['horse', 'Horse'], ['goat', 'Goat']],
+        diamond: [['swan', 'Swan'], ['reindeer', 'Reindeer'], ['yak', 'Yak']],
+        radioactive: [['skunk', 'Skunk'], ['hyena', 'Hyena'], ['vulture', 'Vulture']],
+        rainbow: [['unicorn', 'Unicorn'], ['kangaroo', 'Kangaroo'], ['llama', 'Llama']],
+      }),
+    },
+    {
+      id: 'jungleEgg', name: 'Jungle Egg', tier: 'gold',
+      pets: eggPets([6500, 10000, 16000], {
+        normal: [['monkey', 'Monkey'], ['tiger', 'Tiger'], ['toucan', 'Toucan']],
+        gold: [['panda', 'Panda'], ['sloth', 'Sloth'], ['flamingo', 'Flamingo']],
+        diamond: [['seal', 'Seal'], ['walrus', 'Walrus'], ['diamondSeal', 'Diamond Seal']],
+        radioactive: [['viper', 'Viper'], ['scorpion', 'Scorpion'], ['gorilla', 'Gorilla']],
+        rainbow: [['elephant', 'Elephant'], ['giraffe', 'Giraffe'], ['zebra', 'Zebra']],
+      }),
+    },
+    {
+      id: 'lavaEgg', name: 'Lava Egg', tier: 'red',
+      pets: eggPets([25000, 40000, 65000], {
+        normal: [['imp', 'Imp'], ['phoenix', 'Phoenix'], ['dragon', 'Dragon']],
+        gold: [['salamander', 'Salamander'], ['griffin', 'Griffin'], ['minotaur', 'Minotaur']],
+        diamond: [['polarBear', 'Polar Bear'], ['mammoth', 'Mammoth'], ['iceWolf', 'Ice Wolf']],
+        radioactive: [['rhino', 'Rhino'], ['hippo', 'Hippo'], ['radioactiveDragon', 'Radioactive Dragon']],
+        rainbow: [['hydra', 'Hydra'], ['chimera', 'Chimera'], ['kitsune', 'Kitsune']],
+      }),
+    },
+    {
+      id: 'toxicEgg', name: 'Frog Egg', tier: 'green',
+      pets: eggPets([100, 160, 250], {
+        normal: [['frog', 'Frog'], ['slime', 'Slime'], ['alien', 'Alien']],
+        gold: [['gecko', 'Gecko'], ['turtle', 'Turtle'], ['crocodile', 'Crocodile']],
+        diamond: [['crab', 'Crab'], ['crystalLizard', 'Crystal Lizard'], ['crystalSpider', 'Crystal Spider']],
+        radioactive: [['axolotl', 'Axolotl'], ['radioactivePufferfish', 'Radioactive Pufferfish'], ['piranha', 'Piranha']],
+        rainbow: [['starfish', 'Starfish'], ['octopus', 'Octopus'], ['seahorse', 'Seahorse']],
+      }),
+    },
+    {
+      id: 'secretEgg', name: 'Secret Egg', tier: 'rainbow',
+      pets: eggPets([75000, 150000], {
+        normal: [['jellyfish', 'Jellyfish'], ['kraken', 'Kraken']],
+        gold: [['goldfish', 'Goldfish'], ['trex', 'T-Rex']],
+        diamond: [['narwhal', 'Narwhal'], ['whale', 'Whale']],
+        radioactive: [['shark', 'Shark'], ['anglerfish', 'Anglerfish']],
+        rainbow: [['dolphin', 'Dolphin'], ['leviathan', 'Leviathan']],
+      }),
+    },
+  ],
 }
 
 export const FONT_FAMILY = 'Fredoka'
@@ -670,7 +777,7 @@ export function coerceSetting(key, raw) {
 
 // --- Daily Rewards (dailyWindow.js) ------------------------------------------------------
 // One reward a day (the UTC date), day 1 to 7, then it starts over. `cash` pays that many seconds
-// of the current rate, `pet` is one of PLAYTIME.pets, `paw` is a count of paw coins, which have
+// of the current rate, `pet` is a PLAYTIME or Index pet, `paw` is a count of paw coins, which have
 // no use yet. `op` puts the OP! ribbon on the card. The days' order is the reference's; the
 // amounts are placeholders.
 export const DAILY = {

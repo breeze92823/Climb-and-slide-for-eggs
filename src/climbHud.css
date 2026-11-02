@@ -498,6 +498,15 @@
   inset: 0;
   background: var(--rh-studs) 0 0 / calc(22 * var(--rh-u));
 }
+.rh-best-mark {
+  position: absolute;
+  left: calc(-8 * var(--rh-u));
+  right: calc(-8 * var(--rh-u));
+  height: calc(6 * var(--rh-u));
+  margin-bottom: calc(-3 * var(--rh-u));
+  background: #ffd23a;
+  box-shadow: 0 0 0 calc(2 * var(--rh-u)) #16161c;
+}
 .rh-face {
   position: absolute;
   left: 50%;

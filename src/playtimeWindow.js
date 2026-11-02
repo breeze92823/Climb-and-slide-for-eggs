@@ -13,7 +13,7 @@ import { COIN } from './weightShop.js'
 // goes on. Nothing is saved, so leaving resets the timers and the claims (the pets stay). Measured
 // off the reference (playtimeWindow.css). Skip All's price has no system yet.
 const two = (n) => String(n).padStart(2, '0')
-function clock(s) {
+export function clock(s) {
   const left = Math.ceil(s)
   const h = Math.floor(left / 3600)
   const m = Math.floor(left / 60) % 60

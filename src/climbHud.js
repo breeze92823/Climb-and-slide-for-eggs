@@ -3,7 +3,7 @@
 // prompt, the checkpoint banner and the rainbow meter. Nothing here knows the rules: climbRun.js
 // calls it. Everything is DOM except the speed lines, one small canvas drawn while they show.
 import './climbHud.css'
-import { RUN, TRAIN } from './config.js'
+import { CLIMB, RUN, TRAIN } from './config.js'
 import { formatCash } from './lobbyHud.js'
 
 const MUSCLE = '<svg viewBox="0 0 64 64"><path d="M9 38c2-11 10-14 17-11 1-6-1-10-6-11-3-1-4-5-1-8 5-4 16-3 21 2 5 6 3 13 2 16 8-1 15 3 16 12 1 11-8 19-22 19-16 0-29-7-27-19Z" fill="#f2b84d" stroke="#3a2410" stroke-width="4" stroke-linejoin="round"/><path d="M26 27c5 3 7 8 6 13M18 45c8 6 22 7 32-1" fill="none" stroke="#b77a24" stroke-width="3" stroke-linecap="round"/></svg>'
@@ -29,14 +29,15 @@ function replay(e, name = 'on') {
   e.classList.add(name)
 }
 
-// Where each metre sits on the meter, 0..1 up it: a tier fills its segment on the way to the next.
+// Where each metre sits on the meter, 0..1 up it: a tier fills its segment on the way to the next,
+// and the last one on the way to the summit.
 const shares = RUN.tiers.map((t) => t.meter)
 const meterTotal = shares.reduce((a, b) => a + b, 0)
 function meterAt(m) {
   let below = 0
   for (let i = 0; i < RUN.tiers.length; i++) {
     const from = i === 0 ? 0 : RUN.tiers[i].m
-    const to = RUN.tiers[i + 1]?.m ?? RUN.tiers[i].m * 1.5
+    const to = RUN.tiers[i + 1]?.m ?? CLIMB.length * RUN.metresPerS
     if (m < to) return (below + (shares[i] * (m - from)) / (to - from)) / meterTotal
     below += shares[i]
   }
@@ -103,7 +104,6 @@ export function createClimbHud({ onAuto, onSlot }) {
   auto.className = 'rh-auto rh-text'
   auto.innerHTML = `<span class="rh-auto-icon">${LADDER}</span><span class="rh-auto-label"></span>`
   auto.addEventListener('click', onAuto)
-  root.append(auto)
 
   // --- Lobby: strength and hotbar ----------------------------------------------------------
   const stats = el(root, 'rh-stats rh-text', `<span class="rh-icon">${MUSCLE}</span><span class="rh-stat"></span>`)
@@ -141,6 +141,7 @@ export function createClimbHud({ onAuto, onSlot }) {
 
   const meter = el(run, 'rh-meter')
   for (const tier of RUN.tiers) el(meter, 'rh-seg').style.cssText = `flex-grow:${tier.meter};background:${tier.bar}`
+  const bestMark = el(meter, 'rh-best-mark')
   const face = el(meter, 'rh-face', FACE)
 
   const tagEl = el(root, 'rh-tag rh-text')
@@ -221,11 +222,13 @@ export function createClimbHud({ onAuto, onSlot }) {
       root.classList.remove('running', 'sliding')
     },
 
-    setBar(value, max) {
+    // value/max is the share of the run left; `total` (the player's strength) is what the number
+    // counts down from, so the bar reads in strength like the lobby counter.
+    setBar(value, max, total = max) {
       const n = Math.ceil(value)
       if (n === shownBar) return
       shownBar = n
-      barNum.textContent = n
+      barNum.textContent = formatCash(Math.ceil((total * value) / max))
       barFill.style.width = `${(100 * value) / max}%`
       const low = value / max < RUN.lowStrength
       bar.classList.toggle('low', low)
@@ -251,6 +254,11 @@ export function createClimbHud({ onAuto, onSlot }) {
     setMeter(m) {
       face.style.bottom = `${meterAt(m) * 100}%`
     },
+    // The player's own best, marked on the meter.
+    setBestMark(m) {
+      bestMark.style.bottom = `${meterAt(m) * 100}%`
+      bestMark.style.display = m > 0 ? '' : 'none'
+    },
     setSlideHeight(m) {
       const n = Math.round(m)
       if (n === lastHeight) return
@@ -275,10 +283,10 @@ export function createClimbHud({ onAuto, onSlot }) {
       head.textContent = text
       replay(head)
     },
-    result({ metres, newBest, gain }) {
+    result({ metres, newBest, gain, cash }) {
       bestM.textContent = `${metres}m`
       if (newBest) replay(best)
-      gainEl.textContent = `+${gain} STRENGTH`
+      gainEl.textContent = `+${gain} STRENGTH${cash ? ` • +${formatCash(cash)}$` : ''}`
       replay(gainEl)
     },
     flash(color) {

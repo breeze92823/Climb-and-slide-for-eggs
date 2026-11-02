@@ -5,7 +5,7 @@
 // locally, a guest with no token) everything stays in localStorage and this module is inert.
 import { Client } from '@colyseus/sdk'
 import * as bloxity from './bloxity.js'
-import { NET } from './config.js'
+import { BASES, NET } from './config.js'
 import * as saves from './saves.js'
 
 const state = {
@@ -69,6 +69,8 @@ async function connect() {
     if (code !== 1000 && state.synced) reconnect() // 1000 = we left on purpose
   })
   state.room = room
+  sentBase = null
+  if (lastBase) sendBase(JSON.parse(lastBase))
   // Friends' invites and the Open Rooms list join through this id (the relay pins the pod).
   bloxity.updateRoom(room.roomId)
 }
@@ -202,6 +204,28 @@ export const connected = () => !!state.room
 // Nothing here is persisted; the server only bounds what we send (backend src/presence.ts).
 // { self: sessionId, players: MapSchema } while connected, else null.
 export const roster = () => (state.room?.state?.players ? { self: state.room.sessionId, players: state.room.state.players } : null)
+
+// The base plot (0..3, east to west) the room gave this player; BASES.ownerSeat with no server
+// (or no free seat), so a solo player still has a plot of their own.
+export function seat() {
+  const me = state.room?.state?.players?.get(state.room.sessionId)
+  return me && me.seat >= 0 && me.seat < BASES.list.length ? me.seat : BASES.ownerSeat
+}
+
+// The plot the others see: { p: active pet ids, w: equipped weight id, r: rate text }. Only sent
+// when it changed, and again on a reconnect (the new room has forgotten it).
+let sentBase = null
+let lastBase = null
+export function sendBase(base) {
+  lastBase = JSON.stringify(base)
+  if (!state.room || lastBase === sentBase) return
+  try {
+    state.room.send('setBase', base)
+    sentBase = lastBase
+  } catch {
+    // Closing: the next connect sends it.
+  }
+}
 
 const sentPose = { x: 0, y: 0, z: 0, yaw: 0, at: 0, moving: false }
 // Called every frame with the local player's feet position and facing; sends at most every

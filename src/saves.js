@@ -4,7 +4,7 @@
 // mixes accounts); net.js sends the changed ones to the backend and, for a signed-in player,
 // hydrate() puts the server's copy in before the systems start. The backend's flat document
 // (Climb-and-slide-for-eggs-backend/src/db.ts PlayerDoc) is what `fields` maps each section onto.
-import { DAILY, FARM, INDEX, LOBBY_HUD, REBIRTH, RUN, SELL, WEIGHTS } from './config.js'
+import { COINS, DAILY, FARM, GOALS, INDEX, LOBBY_HUD, REBIRTH, RUN, SELL, WEIGHTS } from './config.js'
 
 const defined = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
 
@@ -26,6 +26,10 @@ const SECTIONS = {
     to: (s) => ({ weightsOwned: s.owned, weightEquipped: s.equipped }),
     from: (d) => defined({ owned: d.weightsOwned, equipped: d.weightEquipped }),
   },
+  [COINS.saveKey]: {
+    to: (s) => ({ coins: s.coins }),
+    from: (d) => defined({ coins: d.coins }),
+  },
   [REBIRTH.saveKey]: {
     to: (s) => ({ rebirths: s.count }),
     from: (d) => defined({ count: d.rebirths }),
@@ -42,6 +46,10 @@ const SECTIONS = {
   [DAILY.saveKey]: {
     to: (s) => ({ paws: s.paws }),
     from: (d) => defined({ paws: d.paws }),
+  },
+  [GOALS.saveKey]: {
+    to: (s) => ({ goalPlayed: s.played, goalHatched: s.hatched, goalGiftAt: s.giftAt, goalPaw: s.paw, goalDone: s.done }),
+    from: (d) => defined({ played: d.goalPlayed, hatched: d.goalHatched, giftAt: d.goalGiftAt, paw: d.goalPaw, done: d.goalDone }),
   },
 }
 

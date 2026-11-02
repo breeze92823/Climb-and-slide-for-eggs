@@ -308,6 +308,34 @@
   border-radius: calc(5 * var(--lh-u));
 }
 
+.lh-coins {
+  position: absolute;
+  left: calc(var(--lh-safe-l) + 30 * var(--lh-u));
+  top: calc(67.5% + 88 * var(--lh-u)); /* under the Strength line (climbHud.css .rh-stats) */
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--lh-u));
+  font-size: calc(44 * var(--lh-u));
+  color: #ffd52e;
+  -webkit-text-stroke-width: calc(5 * var(--lh-u));
+}
+.lh-coins svg {
+  width: calc(44 * var(--lh-u));
+  height: calc(44 * var(--lh-u));
+}
+.lh-coins-add {
+  width: calc(46 * var(--lh-u));
+  height: calc(46 * var(--lh-u));
+  border: calc(4 * var(--lh-u)) solid #123a18;
+  border-radius: calc(8 * var(--lh-u));
+  background: #35d15a;
+  color: #fff;
+  font-size: calc(36 * var(--lh-u));
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 /* --- Right ----------------------------------------------------------------------------- */
 .lh-offers {
   position: absolute;

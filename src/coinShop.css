@@ -1,0 +1,89 @@
+/* The Coins window (coinShop.js) on the uiWindow.css shell. */
+.cs-window {
+  --uiw-w: 900;
+  --uiw-h: 560;
+  z-index: 13;
+}
+.cs-window .uiw-dialog {
+  width: calc(876 * var(--uiw-u));
+  height: calc(545 * var(--uiw-u));
+}
+.cs-window .uiw-head {
+  height: calc(92 * var(--uiw-u));
+  background:
+    var(--uiw-studs) 0 0 / calc(18 * var(--uiw-u)) calc(18 * var(--uiw-u)),
+    #26b54a;
+}
+.cs-window .uiw-head h2 {
+  font-size: max(20px, calc(56 * var(--uiw-u)));
+}
+.cs-window .uiw-body {
+  padding: calc(14 * var(--uiw-u)) calc(20 * var(--uiw-u));
+  background: rgba(24, 48, 30, 0.78);
+}
+.cs-balance {
+  text-align: center;
+  font-size: max(14px, calc(34 * var(--uiw-u)));
+  color: #fff;
+}
+.cs-balance svg,
+.cs-amount svg {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+  margin-right: 0.2em;
+}
+.cs-balance b {
+  color: #7dff5a;
+}
+.cs-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: calc(14 * var(--uiw-u));
+  margin-top: calc(14 * var(--uiw-u));
+}
+.cs-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(12 * var(--uiw-u));
+  padding: calc(18 * var(--uiw-u)) calc(8 * var(--uiw-u));
+  border-radius: calc(12 * var(--uiw-u));
+  background: rgba(255, 255, 255, 0.08);
+  border: calc(3 * var(--uiw-u)) solid #15151b;
+}
+.cs-amount {
+  font-size: max(14px, calc(38 * var(--uiw-u)));
+  color: #fff;
+}
+.cs-buy {
+  width: 86%;
+  padding: calc(8 * var(--uiw-u)) 0;
+  border: calc(3 * var(--uiw-u)) solid #15151b;
+  border-radius: calc(8 * var(--uiw-u));
+  background: #35d15a;
+  color: #fff;
+  font-size: max(12px, calc(30 * var(--uiw-u)));
+  cursor: pointer;
+}
+.cs-buy.cs-short {
+  animation: cs-shake 0.3s;
+  background: #d8391f;
+}
+@keyframes cs-shake {
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+@media (max-width: 760px) {
+  .cs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .cs-window {
+    --uiw-w: 640;
+    --uiw-h: 760;
+  }
+  .cs-window .uiw-dialog {
+    width: calc(616 * var(--uiw-u));
+    height: calc(745 * var(--uiw-u));
+  }
+}

@@ -1,12 +1,12 @@
-// What the player has collected for the Index window: eggs revealed and pets found per tab
-// (a Gold Parrot and a Normal Parrot are separate entries). Saved through saves.js (browser
-// and backend). Hatching calls discoverPet, reaching an egg calls revealEgg.
+// What the player has collected for the Index window: eggs revealed and pets found, nothing
+// at the start. Every pet belongs to one tab. Saved through saves.js (browser and backend).
+// Hatching calls discoverPet, reaching an egg calls revealEgg.
 import { INDEX } from './config.js'
 import * as saves from './saves.js'
 
-const seed = import.meta.env.DEV ? INDEX.devSeed : { eggs: [], pets: {} }
-const eggs = new Set(seed.eggs)
-const found = new Set(Object.entries(seed.pets).flatMap(([tab, ids]) => ids.map((id) => `${tab}:${id}`)))
+const roster = new Set(INDEX.eggs.flatMap((egg) => egg.pets.map((p) => `${p.tab}:${p.id}`)))
+const eggs = new Set()
+const found = new Set()
 const listeners = new Set()
 
 function load() {
@@ -16,7 +16,7 @@ function load() {
     eggs.clear()
     found.clear()
     for (const id of saved.eggs) eggs.add(id)
-    for (const key of saved.found) found.add(key)
+    for (const key of saved.found) if (roster.has(key)) found.add(key) // old saves hold pets a tab no longer has
   } catch {
     // No storage, or a bad save: start from the default.
   }
@@ -26,7 +26,7 @@ export function loadIndex() {
   load()
   eggs.add(INDEX.eggs[0].id) // the first egg is always on show
 }
-loadIndex() // the dev seed / first egg until then
+loadIndex() // the first egg until then
 
 function changed() {
   try {
@@ -42,7 +42,7 @@ export const onIndexChange = (fn) => listeners.add(fn)
 export const isEggRevealed = (eggId) => eggs.has(eggId)
 export const isPetFound = (tab, petId) => found.has(`${tab}:${petId}`)
 export const foundCount = () => found.size
-export const totalCount = () => INDEX.tabs.length * INDEX.eggs.reduce((n, egg) => n + egg.pets.length, 0)
+export const totalCount = () => roster.size
 
 export function revealEgg(eggId) {
   if (eggs.has(eggId)) return
@@ -59,7 +59,10 @@ export function discoverPet(tab, petId) {
   changed()
 }
 
-const share = (tab, egg) => egg.pets.filter((p) => isPetFound(tab, p.id)).length / egg.pets.length
+function share(tab, egg) {
+  const pets = egg.pets.filter((p) => p.tab === tab)
+  return pets.filter((p) => isPetFound(tab, p.id)).length / pets.length
+}
 
 // 0..1 towards the next egg completed in this tab: the unfinished egg closest to done.
 export function eggProgress(tab) {

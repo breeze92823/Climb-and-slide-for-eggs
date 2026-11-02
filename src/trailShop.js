@@ -6,6 +6,7 @@ import { trailPicture } from './trailArt.js'
 import { formatCash } from './lobbyHud.js'
 import { createWindow } from './uiWindow.js'
 import { COIN } from './weightShop.js'
+import { spendCoins } from './coins.js'
 import * as saves from './saves.js'
 
 // The Trail Shop, off the Shop button. Each trail multiplies the strength the player gains (a run's
@@ -85,7 +86,7 @@ export function createTrailShop({ hud, scene }) {
       button(row, 'ws-equip', 'Equip', () => equip(t))
     } else {
       button(row, 'ws-cash', `${formatCash(t.cash)}$`, (b) => buy(t, b))
-      button(row, 'ws-coin', `${COIN}<span>${t.coin}</span>`, () => hud.comingSoon('Robux'))
+      button(row, 'ws-coin', `${COIN}<span>${t.coin}</span>`, (b) => buyCoins(t, b))
     }
   }
 
@@ -98,6 +99,18 @@ export function createTrailShop({ hud, scene }) {
     save.equipped = t ? t.id : ''
     store()
     refresh()
+  }
+
+  const short = (b) => {
+    b.classList.remove('ws-short')
+    void b.offsetWidth
+    b.classList.add('ws-short')
+  }
+
+  function buyCoins(t, b) {
+    if (!spendCoins(t.coin)) return void short(b)
+    save.owned.push(t.id)
+    equip(t)
   }
 
   function buy(t, b) {
