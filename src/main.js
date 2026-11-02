@@ -237,7 +237,7 @@ bloxity.onReservedAreas((areas) => {
 })
 
 // --- Other players ---------------------------------------------------------
-const remotes = createRemotePlayers({ scene, camera, localGroup: playerGroup, localPosition: player.renderPosition, maxDrawn: preset.remotes })
+const remotes = createRemotePlayers({ scene, camera, localGroup: playerGroup, localPosition: player.renderPosition, maxDrawn: preset.remotes, padOf: (i) => world.bases.padOf(i) })
 
 // --- Loop -------------------------------------------------------------------
 const clock = new Clock()

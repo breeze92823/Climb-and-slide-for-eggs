@@ -3,8 +3,10 @@
 // player, interpolated between updates, with a name tag and Bloxity chat bubbles. Only the
 // nearest `preset.remotes` players are drawn at once (graphics preset, lower on phones).
 import * as THREE from 'three'
-import { CanvasTexture, Group, Sprite, SpriteMaterial, SRGBColorSpace } from 'three'
-import { PLAYER_DIMS, REMOTE, TRAIN } from './config.js'
+import { CanvasTexture, Group, Mesh, Sprite, SpriteMaterial, SRGBColorSpace } from 'three'
+import { PLAYER_DIMS, REMOTE, TRAIN, WEIGHTS } from './config.js'
+import { std } from './propkit.js'
+import { weightGeometry } from './weightArt.js'
 import * as bloxity from './bloxity.js'
 import * as net from './net.js'
 import { buildDefaultCharacter, loadBaseCharacter } from './avatar/character.js'
@@ -35,7 +37,7 @@ function nameTexture(name) {
   return tex
 }
 
-export function createRemotePlayers({ scene, camera, localGroup, localPosition, maxDrawn }) {
+export function createRemotePlayers({ scene, camera, localGroup, localPosition, maxDrawn, padOf }) {
   const entries = new Map() // sessionId -> entry, only for players currently drawn
   let sinceSelect = REMOTE.reselectEvery
   const now = () => performance.now() / 1000
@@ -82,7 +84,12 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
     root.add(label)
     root.visible = false
     scene.add(root)
-    const e = { id, root, body, label, avatar: null, animator: null, snaps: [], look: null, name: null, generation: 0, bubble: null, vy: 0, dead: false }
+    const bar = new Mesh(undefined, std('#ffffff', { vertexColors: true, roughness: 0.6 }))
+    bar.castShadow = true
+    bar.frustumCulled = false
+    bar.visible = false
+    root.add(bar)
+    const e = { id, root, body, label, bar, weightId: null, base: null, avatar: null, animator: null, snaps: [], look: null, name: null, generation: 0, bubble: null, vy: 0, dead: false }
     setCharacter(e, buildDefaultCharacter())
     return e
   }
@@ -92,6 +99,7 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
     e.bubble?.remove?.()
     disposeAnimator(e.animator)
     scene.remove(e.root)
+    e.bar.material.dispose()
     e.label.material.map?.dispose()
     e.label.material.dispose()
     e.avatar?.traverse((o) => {
@@ -186,7 +194,23 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
       }
       const s = sample(e, rt)
       const state = roster.players.get(id)
-      const flags = state.anim || 0
+      let flags = state.anim || 0
+      // An old server sends no flags: standing on their own pad still means they are training.
+      const pad = state.seat >= 0 ? padOf?.(state.seat) : null
+      if (pad && Math.hypot(s.x - pad.x, s.z - pad.z) < pad.radius * 0.7) flags |= 8
+      if (state.base !== e.base) {
+        e.base = state.base
+        try {
+          const w = JSON.parse(state.base || '{}').w
+          e.weightId = WEIGHTS.list.some((x) => x.id === w) ? w : WEIGHTS.list[0].id
+        } catch {
+          e.weightId = WEIGHTS.list[0].id
+        }
+        e.bar.geometry = weightGeometry(e.weightId)
+      }
+      const lift = flags & 8 ? (1 - Math.cos(t * TRAIN.reps * Math.PI)) / 2 : null
+      e.bar.visible = lift !== null
+      if (lift !== null) e.bar.position.y = TRAIN.barY[0] + (TRAIN.barY[1] - TRAIN.barY[0]) * lift
       e.root.visible = true
       e.root.position.set(s.x, s.y, s.z)
       e.root.rotation.y = s.yaw
@@ -201,7 +225,7 @@ export function createRemotePlayers({ scene, camera, localGroup, localPosition, 
         turn: 0,
         slide: !!(flags & 1),
         carry: flags & 2 ? 'overhead' : flags & 4 ? 'hold' : null,
-        lift: flags & 8 ? (1 - Math.cos(t * TRAIN.reps * Math.PI)) / 2 : null,
+        lift,
       })
     }
   }

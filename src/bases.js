@@ -227,7 +227,7 @@ export function buildBases(scene, b, particles, seat) {
     const seatPad = trainingPad(scene, b, base, cx)
     const { paint: paintRate, portrait } = ownerSign(scene, base)
     if (!base.owner) {
-      others.push({ seat: i, plot: createRemoteBase({ scene, base, pad: seatPad, paint: paintRate, portrait }) })
+      others.push({ seat: i, pad: seatPad, plot: createRemoteBase({ scene, base, pad: seatPad, paint: paintRate, portrait }) })
       return
     }
     pad = seatPad
@@ -245,6 +245,8 @@ export function buildBases(scene, b, particles, seat) {
   let last = 0
   return {
     pad,
+    // The training pad of another player's seat (their weight lies on it), or undefined.
+    padOf: (i) => others.find((o) => o.seat === i)?.pad,
     x: BASES.list[seat].x, // the local player's plot centre
     upgrades: pad.upgrades,
     sign,
