@@ -299,7 +299,7 @@ export const BASES = {
     { x: -43.5, fence: 'wood', nameColor: '#ffffff', signSize: 3, portrait: { ring: '#d8d8e8', bg: '#efe8f4', skin: '#fbe3dc', hair: '#ececf4' } },
   ],
   // The seat the local player has: rate and cash are live (baseFarm.js), the Upgrade Base sign is theirs.
-  owner: { name: 'Your base', rate: '50$/s', cash: 'x1.00', nameColor: '#ff5cff', signSize: 3.8, portrait: { ring: '#d070ff', bg: '#f0c8ff', skin: '#f2c79a', hair: '#6a4426', shades: true }, sign: { x: 7.4, z: 0.7 } },
+  owner: { name: 'Your base', rate: '0$/s', cash: 'x1.00', nameColor: '#ff5cff', signSize: 3.8, portrait: { ring: '#d070ff', bg: '#f0c8ff', skin: '#f2c79a', hair: '#6a4426', shades: true }, sign: { x: 7.4, z: 0.7 } },
   empty: { name: 'Empty Base', rate: 'Waiting for a player', cash: '' },
   ownerSeat: 2, // the seat used with no server (the original "Your base")
   petBroadcast: 1.5, // s between presence updates of the plot (pets, weight, rate)
@@ -314,7 +314,7 @@ export const SPAWN_FACING = Math.PI // yaw the character faces on spawn (PI = to
 
 // --- The player's plot (baseFarm.js) ----------------------------------------------
 export const FARM = {
-  income: 50, // $/s every base earns, before any pets
+  income: 0, // $/s every base earns, before any pets
   offlineCap: 3600, // s of pet income paid for time away (the reference's $4.9M at 1.4K$/s)
   saveKey: 'climb-slide-farm', // saves.js section (browser + backend)
   margin: 1.6, // m eggs and pets keep from the fence
@@ -402,7 +402,7 @@ export const LOBBY_HUD = {
   incomeEvery: 1, // s between payouts
   saveKey: 'climb-slide-cash', // saves.js section (browser + backend)
   saveEvery: 5, // s
-  devCash: 3000000, // `npm run dev` with no save starts here, as in the reference
+  devCash: 0, // `npm run dev` with no save starts here
   eventEvery: 3600, // s of the Next Event countdown; nothing happens at zero yet
   play: { x: 1.9, z: -20 }, // where the Play tab stands the player, at the foot of the stairs
 }
