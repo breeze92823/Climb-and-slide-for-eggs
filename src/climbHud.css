@@ -333,6 +333,30 @@
 .rh-root.running .rh-run {
   visibility: visible;
 }
+.rh-slide {
+  position: absolute;
+  left: 3%;
+  bottom: 24%;
+  pointer-events: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 calc(22 * var(--rh-u));
+  height: calc(76 * var(--rh-u));
+  background: var(--rh-studs), linear-gradient(180deg, #4aa8e8, #2f86c8) !important;
+  background-size: calc(34 * var(--rh-u)), auto !important;
+  border: calc(4 * var(--rh-u)) solid #1d5a8c !important;
+  border-radius: calc(4 * var(--rh-u));
+  box-shadow: 0 0 0 calc(2 * var(--rh-u)) #15151b;
+  -webkit-text-stroke-width: calc(5 * var(--rh-u));
+  touch-action: none;
+}
+.rh-root .rh-slide {
+  font-size: calc(38 * var(--rh-u));
+}
+.rh-slide:active {
+  transform: scale(0.96);
+}
+.rh-root.sliding .rh-slide,
 .rh-root.sliding .rh-bar,
 .rh-root.sliding .rh-prompt,
 .rh-root.sliding .rh-tap,

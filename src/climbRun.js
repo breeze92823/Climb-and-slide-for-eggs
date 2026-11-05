@@ -75,7 +75,7 @@ function store(save) {
 export function createClimbRun({ scene, group, camera, world }) {
   const save = load()
   const { bursts, climb } = world
-  const hud = createClimbHud({ onAuto: toggleAuto, onSlot: selectSlot })
+  const hud = createClimbHud({ onAuto: toggleAuto, onSlot: selectSlot, onSlide: slideDown })
   hud.setStrength(save.strength)
   hud.setAuto(save.auto)
   hud.setBestMark(save.best)
@@ -138,6 +138,13 @@ export function createClimbRun({ scene, group, camera, world }) {
     showHeld()
   }
   for (let i = 0; i < RUN.hotbar; i++) onKey(`Digit${i + 1}`, () => selectSlot(i))
+
+  // Stop climbing at will: hop onto the slide from the current height (the egg is the tier reached).
+  function slideDown() {
+    if (state === 'climb') hop()
+  }
+  onKey('KeyS', slideDown)
+  onKey('ArrowDown', slideDown)
 
   function toggleAuto() {
     save.auto = !save.auto

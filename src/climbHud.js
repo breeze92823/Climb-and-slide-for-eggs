@@ -44,7 +44,7 @@ function meterAt(m) {
   return 1
 }
 
-export function createClimbHud({ onAuto, onSlot }) {
+export function createClimbHud({ onAuto, onSlot, onSlide }) {
   const root = el(document.body, 'rh-root')
 
   // --- Speed lines -----------------------------------------------------------------------
@@ -130,6 +130,13 @@ export function createClimbHud({ onAuto, onSlot }) {
   const barFill = bar.querySelector('.rh-bar-fill')
   const barNum = bar.querySelector('.rh-bar-num')
   el(run, 'rh-prompt rh-text', 'Tap to Climb Faster!')
+  // Slide Down: stop climbing here and ride down with the egg of the height reached.
+  const slideBtn = document.createElement('button')
+  slideBtn.type = 'button'
+  slideBtn.className = 'rh-slide rh-text'
+  slideBtn.textContent = 'SLIDE DOWN (S)'
+  slideBtn.addEventListener('click', () => onSlide?.())
+  run.append(slideBtn)
   const hand = el(run, 'rh-tap', `<span class="rh-tap-ring"></span><span class="rh-tap-word rh-text">Tap</span><span class="rh-tap-hand">${HAND}</span>`)
   const luck = el(run, 'rh-luck rh-text', `<span class="rh-luck-icon">${CLOVER}</span><span class="rh-luck-num"></span>`)
   const luckNum = luck.querySelector('.rh-luck-num')
